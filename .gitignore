@@ -1,0 +1,15 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Build output
+backend-java/target/
+__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.iml
