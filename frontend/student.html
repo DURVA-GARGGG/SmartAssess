@@ -3,27 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Dashboard | Smart Exam</title>
+    <title>Your exams | Smart Exam</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <nav class="navbar">
-        <h2>Student Portal</h2>
+        <a class="brand" href="student.html"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam</a>
         <div class="nav-links">
-            <span id="userNameDisplay">Student</span>
-            <a href="result.html">My Results</a>
-            <a onclick="logout()">Logout</a>
+            <span id="userNameDisplay" class="user-chip">Student</span>
+            <a href="result.html">My results</a>
+            <a href="#" onclick="logout(); return false;">Sign out</a>
         </div>
     </nav>
 
-    <div class="container">
-        <h1>Available Examinations</h1>
+    <main class="container">
+        <header class="page-head">
+            <h1>Your exams</h1>
+            <p class="lede">Pick an exam to begin. The timer starts when you open it, and switching tabs during the exam is recorded.</p>
+        </header>
         <div id="msg"></div>
 
-        <div id="examList"
-            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
-        </div>
-    </div>
+        <ul id="examList" class="exam-list">
+            <li class="exam-row"><span class="muted">Loading exams...</span></li>
+        </ul>
+    </main>
 
     <script src="js/api.js"></script>
     <script>
@@ -38,7 +41,7 @@
                 if (!res.ok) {
                     const err = await res.json();
                     document.getElementById('examList').innerHTML =
-                        `<p style="color:red;">${err.message || err.error}</p>`;
+                        `<li class="exam-row"><span class="alert error" style="margin:0;">${err.message || err.error || 'Could not load exams. Try signing in again.'}</span></li>`;
                     return;
                 }
 
@@ -47,7 +50,7 @@
                 container.innerHTML = '';
 
                 if (exams.length === 0) {
-                    container.innerHTML = '<p class="glass-panel">No examinations are currently scheduled.</p>';
+                    container.innerHTML = '<li class="exam-row"><span class="muted">No exams are scheduled yet. Check back once your teacher publishes one.</span></li>';
                     return;
                 }
 
@@ -57,22 +60,20 @@
                     const marks = ex.totalMarks || ex.total_marks;
                     const negative = ex.negativeMarking != null ? ex.negativeMarking : (ex.negative_marking != null ? ex.negative_marking : 0);
 
-                    const card = document.createElement('div');
-                    card.className = 'glass-panel';
+                    const card = document.createElement('li');
+                    card.className = 'exam-row';
+                    const negativeText = Number(negative) > 0 ? `minus ${negative} per wrong answer` : 'no negative marking';
 
                     card.innerHTML = `
-                        <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 0.5rem;">
-                            <h3 style="color:#60a5fa; margin:0;">${ex.subject}</h3>
-                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">ID: ${examId}</span>
+                        <div>
+                            <h3>${ex.subject}</h3>
+                            <div class="exam-facts">
+                                <span><strong>${duration}</strong> minutes</span>
+                                <span><strong>${marks}</strong> marks</span>
+                                <span>${negativeText}</span>
+                            </div>
                         </div>
-                        <p style="color:var(--text-muted); line-height: 1.6; margin: 1rem 0;">
-                            ⏱️ Duration: <strong style="color:#fff;">${duration} mins</strong><br>
-                            🎯 Total Marks: <strong style="color:#fff;">${marks}</strong><br>
-                            ⚠️ Negative Marking: <strong style="color:#fff;">${negative}</strong>
-                        </p>
-                        <button onclick="startExam(${examId})" class="btn btn-primary" style="width: 100%;">
-                            Start Assessment →
-                        </button>
+                        <button onclick="startExam(${examId})" class="btn btn-primary">Start exam</button>
                     `;
 
                     container.appendChild(card);
@@ -81,7 +82,7 @@
             } catch (err) {
                 console.error("Fetch failed:", err);
                 document.getElementById('examList').innerHTML =
-                    `<div class="alert error">Failed to connect to examination server at ${API_BASE}.</div>`;
+                    `<li class="exam-row"><span class="alert error" style="margin:0;">Can't reach the server at ${API_BASE}. Check that the backend is running.</span></li>`;
             }
         }
 

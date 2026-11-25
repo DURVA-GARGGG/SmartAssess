@@ -3,34 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Results | Smart Exam Platform</title>
+    <title>My results | Smart Exam</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <nav class="navbar">
-        <h2>Performance & Results</h2>
+        <a class="brand" href="student.html"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam</a>
         <div class="nav-links">
-            <span id="userNameDisplay">Student</span>
-            <a href="student.html">Dashboard</a>
-            <a onclick="logout()">Logout</a>
+            <span id="userNameDisplay" class="user-chip">Student</span>
+            <a href="student.html">Your exams</a>
+            <a href="#" onclick="logout(); return false;">Sign out</a>
         </div>
     </nav>
 
-    <div class="container">
-        <h1>Your Examination Results</h1>
-        <div class="glass-panel" style="margin-top: 2rem;">
+    <main class="container">
+        <header class="page-head">
+            <h1>My results</h1>
+            <p class="lede">Scores include negative marking and your best submission for each coding question. You pass with 40% of the total marks.</p>
+        </header>
+        <div class="panel table-wrap">
             <table>
                 <thead>
                     <tr>
-                        <th>Subject</th>
-                        <th>Score Obtained</th>
-                        <th>Status</th>
+                        <th>Exam</th>
+                        <th>Score</th>
+                        <th>Result</th>
                     </tr>
                 </thead>
-                <tbody id="resultBody"></tbody>
+                <tbody id="resultBody">
+                    <tr><td colspan="3" class="empty">Loading results...</td></tr>
+                </tbody>
             </table>
         </div>
-    </div>
+    </main>
 
     <script src="js/api.js"></script>
     <script>
@@ -43,7 +48,7 @@
                 const tbody = document.getElementById('resultBody');
 
                 if (!Array.isArray(results) || results.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted); padding: 2rem 1rem;">No results declared yet. Complete an exam to view your score.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty">No results yet. Finish an exam and your score appears here.</td></tr>';
                     return;
                 }
 
@@ -55,17 +60,17 @@
 
                     tbody.innerHTML += `
                         <tr>
-                            <td style="font-weight:600; font-size: 1.05rem;">${r.subject}</td>
-                            <td style="font-size: 1.3rem; font-weight:700; color: #6ee7b7">${score}</td>
+                            <td style="font-weight:600;">${r.subject}</td>
+                            <td class="score">${score}</td>
                             <td>
-                                <span class="status-tag status-${status.toLowerCase()}">${status}</span>
+                                <span class="status-tag status-${status.toLowerCase().split(' ')[0]}">${status === 'PASS' ? 'Pass' : status === 'FAIL' ? 'Fail' : status}</span>
                             </td>
                         </tr>
                     `;
                 });
             } catch (err) {
                 document.getElementById('resultBody').innerHTML = 
-                    `<tr><td colspan="3" style="color:#f87171;">Failed to load results: ${err.message}</td></tr>`;
+                    `<tr><td colspan="3" class="empty" style="color:var(--bad);">Couldn't load results: ${err.message}</td></tr>`;
             }
         }
 

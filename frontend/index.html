@@ -3,62 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Exam | Login</title>
+    <title>Sign in | Smart Exam</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        .auth-container {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .auth-box {
-            width: 100%;
-            max-width: 400px;
-        }
-        .toggle-text {
-            text-align: center;
-            margin-top: 1rem;
-            color: var(--text-muted);
-            cursor: pointer;
-        }
-        .toggle-text:hover { color: #fff; }
-    </style>
 </head>
 <body>
-    <div class="auth-container">
-        <div class="glass-panel auth-box">
-            <h1 id="formTitle">Welcome Back</h1>
-            <p style="color: var(--text-muted); margin-bottom: 2rem;">Sign in to your account</p>
-            
-            <div id="msg"></div>
+    <main class="auth-wrap">
+        <div class="auth-box">
+            <div class="auth-brand">
+                <span class="brand"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam</span>
+            </div>
+            <div class="panel">
+                <h1 id="formTitle">Welcome back</h1>
+                <p class="muted" id="formSub" style="margin-bottom: 1.5rem;">Sign in to see your exams and results.</p>
 
-            <form id="authForm">
-                <div class="form-group" id="nameGroup" style="display:none;">
-                    <label>Full Name</label>
-                    <input type="text" id="name" placeholder="John Doe">
-                </div>
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="email" required placeholder="name@college.edu">
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="password" required placeholder="••••••••">
-                </div>
-                <div class="form-group" id="roleGroup" style="display:none;">
-                    <label>Role</label>
-                    <select id="role_id">
-                        <option value="2">Student</option>
-                        <option value="1">Admin</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%">Continue</button>
-            </form>
-            
-            <p class="toggle-text" id="toggleMode">Don't have an account? Sign up</p>
+                <div id="msg" role="status"></div>
+
+                <form id="authForm">
+                    <div class="form-group" id="nameGroup" style="display:none;">
+                        <label for="name">Full name</label>
+                        <input type="text" id="name" placeholder="Your name" autocomplete="name">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" required placeholder="name@college.edu" autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required placeholder="Your password" autocomplete="current-password">
+                    </div>
+                    <div class="form-group" id="roleGroup" style="display:none;">
+                        <label for="role_id">I am a</label>
+                        <select id="role_id">
+                            <option value="2">Student</option>
+                            <option value="1">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Sign in</button>
+                </form>
+            </div>
+            <p class="toggle-text"><span id="toggleLead">New here?</span> <button type="button" id="toggleMode">Create an account</button></p>
         </div>
-    </div>
+    </main>
 
     <script src="js/api.js"></script>
     <script>
@@ -66,8 +51,12 @@
         
         document.getElementById('toggleMode').addEventListener('click', () => {
             isLogin = !isLogin;
-            document.getElementById('formTitle').innerText = isLogin ? 'Welcome Back' : 'Create Account';
-            document.getElementById('toggleMode').innerText = isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in";
+            document.getElementById('formTitle').innerText = isLogin ? 'Welcome back' : 'Create your account';
+            document.getElementById('formSub').innerText = isLogin ? 'Sign in to see your exams and results.' : 'Students take exams; admins create them.';
+            document.getElementById('submitBtn').innerText = isLogin ? 'Sign in' : 'Create account';
+            document.getElementById('toggleLead').innerText = isLogin ? 'New here?' : 'Already have an account?';
+            document.getElementById('toggleMode').innerText = isLogin ? 'Create an account' : 'Sign in';
+            document.getElementById('password').autocomplete = isLogin ? 'current-password' : 'new-password';
             document.getElementById('nameGroup').style.display = isLogin ? 'none' : 'block';
             document.getElementById('roleGroup').style.display = isLogin ? 'none' : 'block';
             document.getElementById('msg').className = 'alert';
@@ -104,14 +93,14 @@
                         if(data.role === 'Admin') window.location.href = 'admin.html';
                         else window.location.href = 'student.html';
                     } else {
-                        showMsg('msg', 'Registration successful! Please login.', false);
-                        document.getElementById('toggleMode').click(); // Switch to login
+                        document.getElementById('toggleMode').click(); // Switch to sign in
+                        showMsg('msg', 'Account created. Sign in to continue.', false);
                     }
                 } else {
                     showMsg('msg', data.error || data.message || 'Error occurred', true);
                 }
             } catch (err) {
-                showMsg('msg', 'Connection to server failed.', true);
+                showMsg('msg', 'Can\'t reach the server. Check that the backend is running on port 8080.', true);
             }
         });
     </script>
