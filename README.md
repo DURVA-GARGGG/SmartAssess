@@ -4,7 +4,7 @@ A modern, enterprise-grade **Online Examination and Coding Assessment Platform**
 
 ---
 
-## 🚀 Key Highlights & New Functionality
+## Key Highlights & New Functionality
 
 ### 1. Complete Java Backend Migration (Spring Boot 3.x)
 - **Architecture**: Strict Layered MVC Architecture (`controller/`, `service/`, `repository/`, `entity/`, `dto/`, `config/`, `exception/`).
@@ -28,7 +28,7 @@ A modern, enterprise-grade **Online Examination and Coding Assessment Platform**
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Smart-Examination-System-main/
@@ -52,20 +52,20 @@ Smart-Examination-System-main/
 │   ├── schema.sql                            # Original DBMS Lab Schema
 │   ├── schema_2.sql                          # Extended DBMS schema with triggers & stored procedures
 │   └── migration_coding_support.sql          # Coding Assessment Migration (Tables: templates, testcases, submissions)
-├── frontend/                                 # Glassmorphism Web Interface
+├── frontend/                                 # Web interface (HTML/CSS/JS)
 │   ├── index.html                            # Authentication (Login / Register)
 │   ├── student.html                          # Student Portal (Exams list, Start attempt)
 │   ├── exam.html                             # Active Exam (Monaco Editor + MCQ + Proctoring)
 │   ├── result.html                           # Results & Performance report
 │   ├── admin.html                            # Admin Portal (Exam creator, MCQ & Coding question builder)
-│   ├── css/style.css                         # Glassmorphism styling & Monaco IDE layout
+│   ├── css/style.css                         # Pastel theme & code editor layout
 │   └── js/api.js                             # Unified REST API Client
 └── backend/                                  # Preserved & upgraded Python Flask API (port 8080/5000)
 ```
 
 ---
 
-## 🗄️ Database Architecture
+## Database Architecture
 
 The system retains all 9 existing tables and adds 4 new tables:
 
@@ -89,7 +89,7 @@ mysql -u root -p smart_exam < database/migration_coding_support.sql
 
 ---
 
-## 🚀 How to Run the Application
+## How to Run the Application
 
 ### 0. One-time setup
 1. Create `backend/.env` from the example and put your MySQL password in it (this file is git-ignored; both backends read it):
@@ -128,16 +128,16 @@ python app.py
 Open `frontend/index.html` in any web browser (Chrome, Edge, Firefox).
 
 ### Testing the Coding Assessment
-1. **Login as Student**:
-   - Email: `dgarg9_be24@thapar.edu` (or click "Sign up" to create a new student account).
-   - Password: `password123` (or your registered password).
+1. **Create an account and sign in**:
+   - On the sign-in page, click **"Create an account"**, choose **Student**, and register.
+   - Sign in with the email and password you just used. (To add exams and questions, create a second account with the **Admin** role.)
 2. **Select the Coding Exam**:
-   - Click **"Start Assessment"** on **"Coding Assessment & Data Structures"**.
+   - Click **"Start exam"** on **"Coding Assessment & Data Structures"**.
 3. **Solve Question 1 (Reverse an Array)**:
    - Select your language (e.g., Python 3 or Java).
    - Review the problem statement, constraints, and sample test cases on the left pane.
    - Enter your code in the Monaco Editor on the right pane.
-   - Enter custom input in the bottom drawer and click **"▶ Run Code"**.
-   - Click **"✓ Submit Code"** to evaluate against all sample and hidden test cases.
-4. **Finish & Submit**:
-   - Click **"Finish & Submit"** in the top bar to record your final score and view your results in `result.html`.
+   - Enter custom input in the bottom drawer and click **"Run code"**.
+   - Click **"Submit code"** to evaluate against all sample and hidden test cases.
+4. **Finish the exam**:
+   - Click **"Finish exam"** in the top bar to record your final score and view your results in `result.html`.
