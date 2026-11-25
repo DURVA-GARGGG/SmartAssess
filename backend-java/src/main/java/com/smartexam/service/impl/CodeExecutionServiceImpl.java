@@ -236,7 +236,10 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
 
     private String normalize(String s) {
         if (s == null) return "";
-        return s.replaceAll("\\r\\n", "\n").replaceAll("\\r", "\n").trim();
+        // Unify line endings, drop trailing spaces on every line, then trim blank lines at the ends
+        return s.replaceAll("\\r\\n", "\n").replaceAll("\\r", "\n")
+                .replaceAll("[ \\t]+\n", "\n")
+                .trim();
     }
 
     /**
@@ -273,7 +276,9 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
                     fileName = "solution.py";
                     File srcFile = new File(tempDir.toFile(), fileName);
                     Files.writeString(srcFile.toPath(), sourceCode);
-                    runCmd = Arrays.asList("python", srcFile.getAbsolutePath());
+                    // macOS/Linux ship "python3"; Windows installs "python"
+                    String pythonCmd = System.getProperty("os.name").toLowerCase().contains("win") ? "python" : "python3";
+                    runCmd = Arrays.asList(pythonCmd, srcFile.getAbsolutePath());
                     break;
                 }
                 case "javascript":
@@ -327,6 +332,12 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
             // Execution stage
             ProcessBuilder runPb = new ProcessBuilder(runCmd);
             runPb.directory(tempDir.toFile());
+            // Write output to files so a chatty program can't fill the pipe buffer and hang
+            File outFile = new File(tempDir.toFile(), "stdout.txt");
+            File errFile = new File(tempDir.toFile(), "stderr.txt");
+            runPb.redirectOutput(outFile);
+            runPb.redirectError(errFile);
+            long runStart = System.currentTimeMillis();
             Process runProcess = runPb.start();
 
             // Feed input
@@ -340,15 +351,15 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
             }
 
             boolean finished = runProcess.waitFor(timeoutSec, TimeUnit.SECONDS);
-            int elapsed = (int)(System.currentTimeMillis() - startTime);
+            int elapsed = (int)(System.currentTimeMillis() - runStart); // run time only, excludes compiling
 
             if (!finished) {
                 runProcess.destroyForcibly();
                 return new CodeRunResponse("TIMEOUT", "", "Time limit exceeded (" + timeoutSec + "s)", "", elapsed, 0);
             }
 
-            String stdout = readStream(runProcess.getInputStream());
-            String stderr = readStream(runProcess.getErrorStream());
+            String stdout = Files.readString(outFile.toPath(), StandardCharsets.UTF_8);
+            String stderr = Files.readString(errFile.toPath(), StandardCharsets.UTF_8);
 
             if (runProcess.exitValue() != 0) {
                 return new CodeRunResponse("RUNTIME_ERROR", stdout, stderr, "", elapsed, 0);
