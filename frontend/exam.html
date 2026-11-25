@@ -24,6 +24,7 @@
             <span id="examSubjectBadge" class="badge" style="background: rgba(0,0,0,0.4); color: #fff;">Exam</span>
         </div>
         <div class="nav-links" style="display:flex; align-items:center; gap: 1.5rem;">
+            <span id="timerDisplay" style="font-weight: 700; color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums;">⏱️ --:--</span>
             <span id="warningMsg" style="font-weight: 700; color: #fee2e2; font-size: 0.85rem; letter-spacing: 0.05em;">
                 🛡️ PROCTORING ACTIVE (NO TAB SWITCHES)
             </span>
@@ -61,6 +62,53 @@
         let studentAnswers = {}; // question_id -> option_id (for MCQ)
         let codingCodes = {};    // question_id -> { language: code }
         let monacoLoaded = false;
+
+        // Countdown timer. The server enforces the real limit (start_time + duration);
+        // this shows the time left and auto-submits when it reaches zero.
+        async function startTimer() {
+            try {
+                const res = await fetch(API_BASE + '/student/exams/available', { headers: getHeaders() });
+                if (!res.ok) return;
+                const exams = await res.json();
+                const exam = exams.find(ex => String(ex.examId || ex.exam_id) === String(examId));
+                if (!exam) return;
+
+                const badge = document.getElementById('examSubjectBadge');
+                if (badge && exam.subject) badge.textContent = exam.subject;
+
+                const minutes = exam.durationMinutes || exam.duration_minutes;
+                if (!minutes) return;
+
+                // Keep the same deadline across page reloads for this attempt
+                const key = 'exam_deadline_' + attemptId;
+                let deadline = parseInt(localStorage.getItem(key), 10);
+                if (!deadline) {
+                    deadline = Date.now() + minutes * 60000;
+                    localStorage.setItem(key, deadline);
+                }
+
+                const el = document.getElementById('timerDisplay');
+                let timerId = null;
+                const tick = () => {
+                    const left = Math.max(0, deadline - Date.now());
+                    const m = Math.floor(left / 60000);
+                    const s = Math.floor((left % 60000) / 1000);
+                    el.textContent = `⏱️ ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                    if (left <= 60000) el.style.color = '#fde047';
+                    if (left === 0) {
+                        clearInterval(timerId);
+                        if (!isSubmitting) {
+                            alert('Time is up! Your exam is being submitted.');
+                            submitExam();
+                        }
+                    }
+                };
+                timerId = setInterval(tick, 1000);
+                tick();
+            } catch (e) {
+                console.error('Timer error:', e);
+            }
+        }
 
         // Initialize Monaco Editor Loader
         require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
@@ -579,6 +627,7 @@
                     headers: getHeaders()
                 });
                 if (res.ok) {
+                    localStorage.removeItem('exam_deadline_' + attemptId);
                     localStorage.removeItem('active_attempt_id');
                     localStorage.removeItem('active_exam_id');
                     window.location.href = 'result.html';
@@ -605,6 +654,7 @@
 
         // Load exam on start
         loadExam();
+        startTimer();
     </script>
 </body>
 </html>
