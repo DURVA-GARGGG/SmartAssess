@@ -381,17 +381,20 @@ DELIMITER ;
 
 
 
--- TRIGGER: AfterResultInsert  (AFTER INSERT on RESULTS)
+-- TRIGGER: BeforeResultInsert  (BEFORE INSERT on RESULTS)
 -- Sets result_status to PASS or FAIL based on whether the
 -- student scored >= 40% of total_marks.
+-- BEFORE (not AFTER) because MySQL forbids a trigger from
+-- UPDATE-ing its own table (Error 1442); here we set NEW directly.
 
 DELIMITER //
 DROP TRIGGER IF EXISTS AfterResultInsert //
-CREATE TRIGGER AfterResultInsert
-AFTER INSERT ON RESULTS
+DROP TRIGGER IF EXISTS BeforeResultInsert //
+CREATE TRIGGER BeforeResultInsert
+BEFORE INSERT ON RESULTS
 FOR EACH ROW
 BEGIN
-    DECLARE v_total_marks INT;
+    DECLARE v_total_marks INT DEFAULT 0;
 
     SELECT e.total_marks
     INTO   v_total_marks
@@ -399,49 +402,38 @@ BEGIN
     JOIN   STUDENT_EXAM se ON e.exam_id = se.exam_id
     WHERE  se.attempt_id = NEW.attempt_id;
 
-    UPDATE RESULTS
-    SET    result_status = IF(NEW.score >= v_total_marks * 0.40, 'PASS', 'FAIL')
-    WHERE  result_id     = NEW.result_id;
-END //
-DELIMITER ;
-
-
-
--- TRIGGER: AfterProctoringUpdate  (AFTER UPDATE on PROCTORING_LOG)
--- Automatically flags an attempt as suspicious when
--- tab_switch_count exceeds 5.
-
-DELIMITER //
-DROP TRIGGER IF EXISTS AfterProctoringUpdate //
-CREATE TRIGGER AfterProctoringUpdate
-AFTER UPDATE ON PROCTORING_LOG
-FOR EACH ROW
-BEGIN
-    IF NEW.tab_switch_count > 5 AND NEW.suspicious_flag = FALSE THEN
-        UPDATE PROCTORING_LOG
-        SET    suspicious_flag = TRUE
-        WHERE  log_id          = NEW.log_id;
+    IF NEW.score IS NOT NULL AND v_total_marks > 0 THEN
+        SET NEW.result_status = IF(NEW.score >= v_total_marks * 0.40, 'PASS', 'FAIL');
     END IF;
 END //
 DELIMITER ;
 
 
 
--- TRIGGER: AfterProctoringInsert  (AFTER INSERT on PROCTORING_LOG)
--- Creates the initial proctoring log entry when a student
--- starts an exam (triggered from application layer).
--- Also flags immediately if somehow tab switches already > 5.
+-- TRIGGERS: BeforeProctoringUpdate / BeforeProctoringInsert
+-- Automatically flag an attempt as suspicious when
+-- tab_switch_count exceeds 5 (BEFORE triggers, same reason).
 
 DELIMITER //
+DROP TRIGGER IF EXISTS AfterProctoringUpdate //
 DROP TRIGGER IF EXISTS AfterProctoringInsert //
-CREATE TRIGGER AfterProctoringInsert
-AFTER INSERT ON PROCTORING_LOG
+DROP TRIGGER IF EXISTS BeforeProctoringUpdate //
+DROP TRIGGER IF EXISTS BeforeProctoringInsert //
+CREATE TRIGGER BeforeProctoringUpdate
+BEFORE UPDATE ON PROCTORING_LOG
 FOR EACH ROW
 BEGIN
     IF NEW.tab_switch_count > 5 THEN
-        UPDATE PROCTORING_LOG
-        SET    suspicious_flag = TRUE
-        WHERE  log_id          = NEW.log_id;
+        SET NEW.suspicious_flag = TRUE;
+    END IF;
+END //
+
+CREATE TRIGGER BeforeProctoringInsert
+BEFORE INSERT ON PROCTORING_LOG
+FOR EACH ROW
+BEGIN
+    IF NEW.tab_switch_count > 5 THEN
+        SET NEW.suspicious_flag = TRUE;
     END IF;
 END //
 DELIMITER ;
