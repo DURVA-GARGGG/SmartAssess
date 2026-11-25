@@ -2,6 +2,7 @@ package com.smartexam.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -36,17 +37,16 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // CORS preflight requests carry no token
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/health",
-                    "/api/student/exams/available",
-                    "/api/student/exams/*/questions",
-                    "/api/student/responses",
-                    "/api/student/exams/*/submit",
-                    "/api/proctor/logs",
-                    "/error",
-                    "/**" // Permissive to support direct file:// CORS fetch during migration testing
+                    "/error"
                 ).permitAll()
+                // Only admins may create exams/questions or view all results
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // Every other endpoint needs a valid JWT
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
