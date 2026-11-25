@@ -42,7 +42,7 @@ public class StudentController {
 
         Integer userId = extractUserId(authHeader, request);
         if (userId == null) {
-            userId = 2; // Default fallback student ID for open demo access
+            throw new ApiException("Please log in again", 401);
         }
 
         Integer attemptId = studentExamService.startExam(userId, examId);
@@ -73,7 +73,7 @@ public class StudentController {
 
         Integer userId = extractUserId(authHeader, request);
         if (userId == null) {
-            userId = 2;
+            throw new ApiException("Please log in again", 401);
         }
 
         return ResponseEntity.ok(studentExamService.getStudentResults(userId));

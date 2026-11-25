@@ -49,8 +49,11 @@ public class AuthServiceImpl implements AuthService {
         User user = new User();
         user.setName(request.getName());
         user.setEmail(request.getEmail().trim());
-        // For compatibility with the existing project's DB data
-        user.setPassword(request.getPassword());
+        if (request.getPassword() == null || request.getPassword().isEmpty()) {
+            throw new ApiException("Password is required");
+        }
+        // Store a BCrypt hash, never the plain password
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(role);
 
         userRepository.save(user);
@@ -65,8 +68,11 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.getEmail().trim())
                 .orElseThrow(() -> new ApiException("Invalid credentials", 401));
 
-        boolean matches = request.getPassword().equals(user.getPassword())
-                || passwordEncoder.matches(request.getPassword(), user.getPassword());
+        // New accounts store BCrypt hashes ("$2..."); older seed accounts may still be plain text
+        String stored = user.getPassword() != null ? user.getPassword() : "";
+        boolean matches = stored.startsWith("$2")
+                ? passwordEncoder.matches(request.getPassword(), stored)
+                : request.getPassword().equals(stored);
 
         if (!matches) {
             throw new ApiException("Invalid credentials", 401);
