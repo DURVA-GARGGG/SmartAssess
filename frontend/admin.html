@@ -3,192 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard | Smart Exam & Coding Platform</title>
+    <title>Admin | Smart Exam</title>
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        .testcase-row {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
-        }
-        textarea {
-            width: 100%;
-            padding: 10px 14px;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(15, 23, 42, 0.6);
-            color: #fff;
-            font-size: 0.95rem;
-            outline: none;
-            font-family: inherit;
-        }
-        textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
-        }
-    </style>
 </head>
 <body>
     <nav class="navbar">
-        <h2>Admin Portal</h2>
+        <a class="brand" href="admin.html"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam <small>Admin</small></a>
         <div class="nav-links">
-            <span id="userNameDisplay">Admin</span>
-            <a onclick="logout()">Logout</a>
+            <span id="userNameDisplay" class="user-chip">Admin</span>
+            <a href="#" onclick="logout(); return false;">Sign out</a>
         </div>
     </nav>
 
-    <div class="container">
-        <h1>Dashboard Overview</h1>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2rem;">
-            <!-- Create Exam Section -->
-            <div class="glass-panel">
-                <h3>Create New Exam</h3>
-                <div id="msgExam"></div>
+    <main class="container">
+        <header class="page-head">
+            <h1>Manage exams</h1>
+            <p class="lede">Create an exam, add MCQ or coding questions to it, and follow student results below.</p>
+        </header>
+
+        <div class="grid-2">
+            <!-- Create exam -->
+            <section class="panel">
+                <h3>Create an exam</h3>
+                <div id="msgExam" role="status"></div>
                 <form id="createExamForm">
                     <div class="form-group">
-                        <label>Subject Name</label>
-                        <input type="text" id="subject" required placeholder="e.g. Data Structures & Algorithms">
+                        <label for="subject">Subject</label>
+                        <input type="text" id="subject" required placeholder="Data Structures">
                     </div>
                     <div class="form-group">
-                        <label>Exam Date & Time</label>
+                        <label for="exam_date">Last date to start</label>
                         <input type="datetime-local" id="exam_date" required>
+                        <span class="hint">Students can't start the exam after this date.</span>
                     </div>
-                    <div class="form-group">
-                        <label>Duration (Minutes)</label>
-                        <input type="number" id="duration" required value="60">
+                    <div class="grid-3">
+                        <div class="form-group">
+                            <label for="duration">Minutes</label>
+                            <input type="number" id="duration" required value="60" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="total_marks">Total marks</label>
+                            <input type="number" id="total_marks" required value="100" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="negative">Minus per wrong</label>
+                            <input type="number" step="0.01" id="negative" value="0.0" min="0">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Total Marks</label>
-                        <input type="number" id="total_marks" required value="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Negative Marking (e.g. 0.25)</label>
-                        <input type="number" step="0.01" id="negative" value="0.0">
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Create Exam</button>
+                    <button type="submit" class="btn btn-primary btn-block">Create exam</button>
                 </form>
-            </div>
+            </section>
 
-            <!-- Add Question Section (MCQ or Coding) -->
-            <div class="glass-panel">
-                <h3>Add Question to Exam</h3>
-                <div id="msgQuestion"></div>
+            <!-- Add question -->
+            <section class="panel">
+                <h3>Add a question</h3>
+                <div id="msgQuestion" role="status"></div>
                 <form id="addQuestionForm">
                     <div class="form-group">
-                        <label>Select Exam</label>
+                        <label for="exam_id_select">Exam</label>
                         <select id="exam_id_select" required></select>
                     </div>
 
                     <div class="form-group">
-                        <label>Question Type</label>
+                        <label for="q_type">Question type</label>
                         <select id="q_type" onchange="toggleQuestionTypeFields()">
-                            <option value="MCQ" selected>Multiple Choice (MCQ)</option>
-                            <option value="CODING">Coding Assessment (HackerRank)</option>
+                            <option value="MCQ" selected>Multiple choice</option>
+                            <option value="CODING">Coding problem</option>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <label>Question Title / Text</label>
-                        <input type="text" id="q_text" required placeholder="e.g. Reverse an Array">
+                        <label for="q_text">Question</label>
+                        <input type="text" id="q_text" required placeholder="Reverse an array">
                     </div>
 
-                    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <div class="grid-3">
                         <div class="form-group">
-                            <label>Marks</label>
-                            <input type="number" id="q_marks" value="5" required>
+                            <label for="q_marks">Marks</label>
+                            <input type="number" id="q_marks" value="5" required min="1">
                         </div>
                         <div class="form-group">
-                            <label>Difficulty</label>
+                            <label for="q_difficulty">Difficulty</label>
                             <select id="q_difficulty">
-                                <option value="EASY">EASY</option>
-                                <option value="MEDIUM" selected>MEDIUM</option>
-                                <option value="HARD">HARD</option>
+                                <option value="EASY">Easy</option>
+                                <option value="MEDIUM" selected>Medium</option>
+                                <option value="HARD">Hard</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Topic</label>
+                            <label for="q_topic">Topic</label>
                             <input type="text" id="q_topic" value="General">
                         </div>
                     </div>
 
-                    <!-- MCQ Section -->
-                    <div id="mcqFields" style="margin-bottom: 1rem;">
-                        <label style="color:var(--text-muted); font-size:0.9rem; margin-bottom:0.5rem; display:block;">Options (Select radio for correct answer)</label>
-                        <div style="display:flex; gap:10px; margin-bottom:5px;">
-                            <input type="radio" name="correct_opt" value="0" checked>
+                    <!-- MCQ options -->
+                    <fieldset id="mcqFields" style="border:none; margin-bottom: 1rem;">
+                        <legend class="field-label" style="margin-bottom:0.5rem;">Options <span class="muted" style="font-weight:400;">(select the correct one)</span></legend>
+                        <div class="option-row">
+                            <input type="radio" name="correct_opt" value="0" checked aria-label="Option 1 is correct">
                             <input type="text" id="opt_0" placeholder="Option 1" required>
                         </div>
-                        <div style="display:flex; gap:10px; margin-bottom:5px;">
-                            <input type="radio" name="correct_opt" value="1">
+                        <div class="option-row">
+                            <input type="radio" name="correct_opt" value="1" aria-label="Option 2 is correct">
                             <input type="text" id="opt_1" placeholder="Option 2" required>
                         </div>
-                        <div style="display:flex; gap:10px; margin-bottom:5px;">
-                            <input type="radio" name="correct_opt" value="2">
+                        <div class="option-row">
+                            <input type="radio" name="correct_opt" value="2" aria-label="Option 3 is correct">
                             <input type="text" id="opt_2" placeholder="Option 3" required>
                         </div>
-                        <div style="display:flex; gap:10px; margin-bottom:5px;">
-                            <input type="radio" name="correct_opt" value="3">
+                        <div class="option-row">
+                            <input type="radio" name="correct_opt" value="3" aria-label="Option 4 is correct">
                             <input type="text" id="opt_3" placeholder="Option 4" required>
                         </div>
+                    </fieldset>
+
+                    <!-- Coding problem fields -->
+                    <div id="codingFields" style="display:none; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label for="q_problem_statement">Problem statement</label>
+                            <textarea id="q_problem_statement" rows="3" placeholder="Describe the task, with an example if it helps."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="q_constraints">Constraints</label>
+                            <textarea id="q_constraints" rows="2" placeholder="1 <= N <= 10^5"></textarea>
+                        </div>
+                        <div class="tc-grid">
+                            <div class="form-group">
+                                <label for="q_input_format">Input format</label>
+                                <textarea id="q_input_format" rows="2" placeholder="First line contains N"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="q_output_format">Output format</label>
+                                <textarea id="q_output_format" rows="2" placeholder="Print the answer"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="panel-head" style="margin: 0.5rem 0 0.6rem;">
+                            <span class="field-label" style="margin:0;">Test cases</span>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addTestCaseRow()">Add test case</button>
+                        </div>
+                        <p class="hint" style="margin: -0.3rem 0 0.75rem;">Sample cases are shown to students. Hidden cases are only used for grading.</p>
+                        <div id="testCasesContainer"></div>
                     </div>
 
-                    <!-- Coding Question Section -->
-                    <div id="codingFields" style="display:none; margin-bottom: 1.5rem;">
-                        <div class="form-group">
-                            <label>Problem Statement (Markdown / Text)</label>
-                            <textarea id="q_problem_statement" rows="3" placeholder="Detailed problem description..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label>Constraints</label>
-                            <textarea id="q_constraints" rows="2" placeholder="e.g. 1 <= N <= 10^5"></textarea>
-                        </div>
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <div class="form-group">
-                                <label>Input Format</label>
-                                <textarea id="q_input_format" rows="2" placeholder="First line contains N..."></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label>Output Format</label>
-                                <textarea id="q_output_format" rows="2" placeholder="Print the result..."></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Test Cases Builder -->
-                        <div style="margin-top: 1rem;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-                                <label style="font-weight:700; color:#60a5fa;">Test Cases</label>
-                                <button type="button" class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: rgba(96,165,250,0.2); color:#60a5fa;" onclick="addTestCaseRow()">+ Add Test Case</button>
-                            </div>
-                            <div id="testCasesContainer">
-                                <!-- Dynamic test case rows inserted here -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-secondary" style="width: 100%;">Add Question</button>
+                    <button type="submit" class="btn btn-secondary btn-block">Add question</button>
                 </form>
-            </div>
+            </section>
         </div>
 
-        <!-- High-level Results view -->
-        <div class="glass-panel" style="margin-top: 2rem;">
-            <h3>All Student Results</h3>
+        <!-- Results -->
+        <section class="panel table-wrap" style="margin-top: 1.5rem;">
+            <h3>Student results</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Student</th>
                         <th>Exam</th>
                         <th>Score</th>
-                        <th>Status</th>
+                        <th>Result</th>
                     </tr>
                 </thead>
-                <tbody id="resultsTableBody"></tbody>
+                <tbody id="resultsTableBody">
+                    <tr><td colspan="4" class="empty">Loading results...</td></tr>
+                </tbody>
             </table>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <script src="js/api.js"></script>
     <script>
@@ -223,23 +203,23 @@
             row.className = 'testcase-row';
             row.id = `tc_row_${testCaseCount}`;
             row.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <strong style="font-size:0.85rem; color:#e2e8f0;">Test Case #${testCaseCount}</strong>
-                    <div style="display:flex; align-items:center; gap: 8px;">
-                        <label style="font-size:0.8rem; color:var(--text-muted); cursor:pointer;">
-                            <input type="checkbox" id="tc_sample_${testCaseCount}" ${isSample ? 'checked' : ''} style="width:auto;"> Sample (Visible to Student)
+                <div class="tc-head">
+                    <strong style="font-size:0.9rem;">Test case ${testCaseCount}</strong>
+                    <div style="display:flex; align-items:center; gap: 0.9rem;">
+                        <label>
+                            <input type="checkbox" id="tc_sample_${testCaseCount}" ${isSample ? 'checked' : ''}> Sample, shown to students
                         </label>
-                        <button type="button" onclick="document.getElementById('tc_row_${testCaseCount}').remove()" style="background:transparent; border:none; color:#ef4444; cursor:pointer;">✕</button>
+                        <button type="button" class="link-danger" onclick="document.getElementById('tc_row_${testCaseCount}').remove()">Remove</button>
                     </div>
                 </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="tc-grid">
                     <div>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">Input:</span>
-                        <textarea id="tc_input_${testCaseCount}" rows="2" style="font-family:monospace; font-size:0.85rem;" placeholder="Stdin data..." required></textarea>
+                        <span>Input</span>
+                        <textarea id="tc_input_${testCaseCount}" rows="2" placeholder="5&#10;1 2 3 4 5" required></textarea>
                     </div>
                     <div>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">Expected Output:</span>
-                        <textarea id="tc_output_${testCaseCount}" rows="2" style="font-family:monospace; font-size:0.85rem;" placeholder="Expected stdout..." required></textarea>
+                        <span>Expected output</span>
+                        <textarea id="tc_output_${testCaseCount}" rows="2" placeholder="5 4 3 2 1" required></textarea>
                     </div>
                 </div>
             `;
@@ -270,15 +250,15 @@
                 const tbody = document.getElementById('resultsTableBody');
                 tbody.innerHTML = '';
                 if (!Array.isArray(data) || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">No student results available yet.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty">No results yet. They appear here as students finish exams.</td></tr>';
                     return;
                 }
                 data.forEach(r => {
                     tbody.innerHTML += `<tr>
                         <td>${r.student_name}</td>
                         <td>${r.subject}</td>
-                        <td><strong style="color: #6ee7b7">${r.score !== null ? r.score : 'Pending'}</strong></td>
-                        <td><span class="status-tag status-${(r.result_status || 'pass').toLowerCase()}">${r.result_status || 'In Progress'}</span></td>
+                        <td class="score">${r.score !== null ? r.score : 'Pending'}</td>
+                        <td><span class="status-tag status-${(r.result_status || 'in').toLowerCase()}">${r.result_status === 'PASS' ? 'Pass' : r.result_status === 'FAIL' ? 'Fail' : (r.result_status || 'In progress')}</span></td>
                     </tr>`;
                 });
             } catch (e) {
@@ -300,7 +280,7 @@
                     method: 'POST', headers: getHeaders(), body: JSON.stringify(payload)
                 });
                 if(res.ok) {
-                    showMsg('msgExam', 'Exam created successfully!', false);
+                    showMsg('msgExam', 'Exam created. You can add questions to it now.', false);
                     document.getElementById('createExamForm').reset();
                     fetchExams();
                 } else {
@@ -373,7 +353,7 @@
                     method: 'POST', headers: getHeaders(), body: JSON.stringify(payload)
                 });
                 if(res.ok) {
-                    showMsg('msgQuestion', `${qType} question added successfully!`, false);
+                    showMsg('msgQuestion', qType === 'CODING' ? 'Coding question added.' : 'Question added.', false);
                     document.getElementById('addQuestionForm').reset();
                     toggleQuestionTypeFields();
                 } else {
