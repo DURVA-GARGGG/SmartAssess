@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard | Smart Exam</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <h2>Student Portal</h2>
+        <div class="nav-links">
+            <span id="userNameDisplay">Student</span>
+            <a href="result.html">My Results</a>
+            <a onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Available Examinations</h1>
+        <div id="msg"></div>
+
+        <div id="examList"
+            style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        checkAuth('Student');
+
+        async function fetchAvailableExams() {
+            try {
+                const res = await fetch(API_BASE + '/student/exams/available', {
+                    headers: getHeaders()
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    document.getElementById('examList').innerHTML =
+                        `<p style="color:red;">${err.message || err.error}</p>`;
+                    return;
+                }
+
+                const exams = await res.json();
+                const container = document.getElementById('examList');
+                container.innerHTML = '';
+
+                if (exams.length === 0) {
+                    container.innerHTML = '<p class="glass-panel">No examinations are currently scheduled.</p>';
+                    return;
+                }
+
+                exams.forEach(ex => {
+                    const examId = ex.examId || ex.exam_id;
+                    const duration = ex.durationMinutes || ex.duration_minutes;
+                    const marks = ex.totalMarks || ex.total_marks;
+                    const negative = ex.negativeMarking != null ? ex.negativeMarking : (ex.negative_marking != null ? ex.negative_marking : 0);
+
+                    const card = document.createElement('div');
+                    card.className = 'glass-panel';
+
+                    card.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom: 0.5rem;">
+                            <h3 style="color:#60a5fa; margin:0;">${ex.subject}</h3>
+                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">ID: ${examId}</span>
+                        </div>
+                        <p style="color:var(--text-muted); line-height: 1.6; margin: 1rem 0;">
+                            ⏱️ Duration: <strong style="color:#fff;">${duration} mins</strong><br>
+                            🎯 Total Marks: <strong style="color:#fff;">${marks}</strong><br>
+                            ⚠️ Negative Marking: <strong style="color:#fff;">${negative}</strong>
+                        </p>
+                        <button onclick="startExam(${examId})" class="btn btn-primary" style="width: 100%;">
+                            Start Assessment →
+                        </button>
+                    `;
+
+                    container.appendChild(card);
+                });
+
+            } catch (err) {
+                console.error("Fetch failed:", err);
+                document.getElementById('examList').innerHTML =
+                    `<div class="alert error">Failed to connect to examination server at ${API_BASE}.</div>`;
+            }
+        }
+
+        async function startExam(exam_id) {
+            try {
+                const res = await fetch(API_BASE + `/student/exams/${exam_id}/start`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('active_attempt_id', data.attempt_id);
+                    localStorage.setItem('active_exam_id', exam_id);
+                    window.location.href = 'exam.html';
+                } else {
+                    const err = await res.json();
+                    alert(err.error || err.message || 'Unable to start examination.');
+                }
+            } catch (err) {
+                alert('Connection error: ' + err.message);
+            }
+        }
+
+        fetchAvailableExams();
+    </script>
+</body>
+</html>

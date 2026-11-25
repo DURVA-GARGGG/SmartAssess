@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Exam | Active Examination</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Monaco Editor AMD Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <style>
+        .question-card { margin-bottom: 2rem; border-left: 4px solid var(--primary); }
+        .option-lbl { display: block; padding: 12px 16px; background: rgba(255,255,255,0.04); margin-bottom: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; border: 1px solid rgba(255,255,255,0.06); }
+        .option-lbl:hover { background: rgba(79, 70, 229, 0.2); border-color: rgba(79, 70, 229, 0.4); }
+        .option-lbl.selected { background: rgba(79, 70, 229, 0.3); border-color: var(--primary); font-weight: 600; }
+        input[type="radio"] { width: auto; margin-right: 12px; }
+        .exam-header { display: flex; justify-content: space-between; align-items: center; }
+        .loading-spinner { text-align: center; padding: 3rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="navbar" style="background: rgba(185, 28, 28, 0.85); border-bottom: 1px solid rgba(239, 68, 68, 0.3);">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h2 style="margin: 0; font-size: 1.25rem;">Active Assessment</h2>
+            <span id="examSubjectBadge" class="badge" style="background: rgba(0,0,0,0.4); color: #fff;">Exam</span>
+        </div>
+        <div class="nav-links" style="display:flex; align-items:center; gap: 1.5rem;">
+            <span id="warningMsg" style="font-weight: 700; color: #fee2e2; font-size: 0.85rem; letter-spacing: 0.05em;">
+                🛡️ PROCTORING ACTIVE (NO TAB SWITCHES)
+            </span>
+            <button class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.9rem;" onclick="confirmSubmitExam()">Finish & Submit</button>
+        </div>
+    </div>
+
+    <div class="container" style="max-width: 1400px; padding: 1.5rem;">
+        <div id="msg"></div>
+
+        <!-- Question Navigation Bar -->
+        <div class="q-nav-strip" id="qNavStrip"></div>
+
+        <!-- Main Question View Container -->
+        <div id="questionDisplayArea">
+            <div class="loading-spinner">Loading exam questions...</div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        checkAuth('Student');
+
+        const attemptId = localStorage.getItem('active_attempt_id');
+        const examId = localStorage.getItem('active_exam_id');
+
+        if (!attemptId || !examId) {
+            window.location.href = 'student.html';
+        }
+
+        let isSubmitting = false;
+        let examQuestions = [];
+        let currentQuestionIndex = 0;
+        let monacoInstance = null;
+        let studentAnswers = {}; // question_id -> option_id (for MCQ)
+        let codingCodes = {};    // question_id -> { language: code }
+        let monacoLoaded = false;
+
+        // Initialize Monaco Editor Loader
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            monacoLoaded = true;
+            if (examQuestions.length > 0 && examQuestions[currentQuestionIndex].question_type === 'CODING') {
+                initMonacoForQuestion(examQuestions[currentQuestionIndex]);
+            }
+        });
+
+        // Tab Switch Proctoring
+        document.addEventListener("visibilitychange", async () => {
+            if (document.hidden && !isSubmitting) {
+                try {
+                    await fetch(API_BASE + '/proctor/logs', {
+                        method: 'POST',
+                        headers: getHeaders(),
+                        body: JSON.stringify({ attempt_id: parseInt(attemptId), action: 'TAB_SWITCH' })
+                    });
+                } catch(e) {}
+                alert('WARNING: Tab switch detected! This activity has been recorded in your proctoring log.');
+            }
+        });
+
+        // Fetch Exam Questions
+        async function loadExam() {
+            try {
+                const res = await fetch(API_BASE + `/student/exams/${examId}/questions`, { headers: getHeaders() });
+                if (!res.ok) throw new Error('Failed to fetch exam questions');
+
+                examQuestions = await res.json();
+                if (examQuestions.length === 0) {
+                    document.getElementById('questionDisplayArea').innerHTML = '<p class="glass-panel">No questions found for this exam.</p>';
+                    return;
+                }
+
+                renderQuestionNav();
+                renderCurrentQuestion();
+            } catch (err) {
+                console.error("Error loading questions:", err);
+                document.getElementById('msg').innerHTML = `<div class="alert error">Failed to load exam questions: ${err.message}</div>`;
+            }
+        }
+
+        // Render Top Navigator Pills
+        function renderQuestionNav() {
+            const strip = document.getElementById('qNavStrip');
+            strip.innerHTML = '';
+
+            examQuestions.forEach((q, idx) => {
+                const pill = document.createElement('div');
+                pill.className = `q-nav-pill ${idx === currentQuestionIndex ? 'active' : ''}`;
+                const isCoding = q.question_type === 'CODING';
+                pill.innerHTML = `
+                    <span>Q${idx + 1}</span>
+                    <span class="badge ${isCoding ? 'badge-coding' : 'badge-mcq'}">${isCoding ? 'Code' : 'MCQ'}</span>
+                `;
+                pill.onclick = () => switchQuestion(idx);
+                strip.appendChild(pill);
+            });
+        }
+
+        function switchQuestion(idx) {
+            // Save code in memory before switching if leaving a coding question
+            if (monacoInstance && examQuestions[currentQuestionIndex].question_type === 'CODING') {
+                const qId = examQuestions[currentQuestionIndex].question_id;
+                const lang = document.getElementById('codeLangSelect').value;
+                if (!codingCodes[qId]) codingCodes[qId] = {};
+                codingCodes[qId][lang] = monacoInstance.getValue();
+            }
+
+            currentQuestionIndex = idx;
+            renderQuestionNav();
+            renderCurrentQuestion();
+        }
+
+        function renderCurrentQuestion() {
+            const container = document.getElementById('questionDisplayArea');
+            const q = examQuestions[currentQuestionIndex];
+
+            if (q.question_type === 'CODING') {
+                renderCodingQuestion(q, container);
+            } else {
+                renderMCQQuestion(q, container);
+            }
+        }
+
+        // Render MCQ Interface
+        function renderMCQQuestion(q, container) {
+            let optionsHtml = '';
+            (q.options || []).forEach(opt => {
+                const isChecked = studentAnswers[q.question_id] === opt.option_id;
+                optionsHtml += `
+                    <label class="option-lbl ${isChecked ? 'selected' : ''}" id="lbl_${opt.option_id}">
+                        <input type="radio" name="mcq_opt_${q.question_id}" value="${opt.option_id}" 
+                               ${isChecked ? 'checked' : ''}
+                               onchange="handleOptionSelect(${q.question_id}, ${opt.option_id})">
+                        ${escapeHtml(opt.option_text)}
+                    </label>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="glass-panel question-card">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <h2>Question ${currentQuestionIndex + 1}</h2>
+                        <div>
+                            <span class="badge badge-mcq">MCQ</span>
+                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${q.difficulty || 'MEDIUM'}</span>
+                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">${q.marks} Marks</span>
+                        </div>
+                    </div>
+                    <p style="font-size:1.15rem; line-height: 1.6; margin-bottom: 1.5rem; color: #f1f5f9;">
+                        ${escapeHtml(q.question_text)}
+                    </p>
+                    <div style="margin-top: 1.5rem;">
+                        ${optionsHtml}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-top:2rem;">
+                        <button class="btn" style="background: rgba(255,255,255,0.1);" 
+                                ${currentQuestionIndex === 0 ? 'disabled' : ''} 
+                                onclick="switchQuestion(${currentQuestionIndex - 1})">← Previous</button>
+                        <button class="btn btn-primary" 
+                                ${currentQuestionIndex === examQuestions.length - 1 ? 'disabled' : ''} 
+                                onclick="switchQuestion(${currentQuestionIndex + 1})">Next →</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Render HackerRank Coding Interface
+        function renderCodingQuestion(q, container) {
+            let sampleCasesHtml = '';
+            (q.sample_test_cases || []).forEach((stc, sIdx) => {
+                sampleCasesHtml += `
+                    <div class="testcase-item">
+                        <strong>Sample Test Case ${sIdx + 1}</strong>
+                        <div style="margin-top:5px; font-size:0.85rem; color:var(--text-muted);">Input:</div>
+                        <div class="pre-box" style="margin-bottom:6px;">${escapeHtml(stc.input_data)}</div>
+                        <div style="font-size:0.85rem; color:var(--text-muted);">Expected Output:</div>
+                        <div class="pre-box" style="margin-bottom:0;">${escapeHtml(stc.expected_output)}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="coding-container">
+                    <!-- Left Pane: Problem Description -->
+                    <div class="problem-pane">
+                        <h2>${escapeHtml(q.question_text)}</h2>
+                        <div class="meta-row">
+                            <span class="badge badge-coding">Coding Assessment</span>
+                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${q.difficulty || 'MEDIUM'}</span>
+                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">${q.marks} Marks</span>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color:#a5b4fc;">Topic: ${escapeHtml(q.topic || 'General')}</span>
+                        </div>
+
+                        <div class="section-title">Problem Statement</div>
+                        <p style="line-height:1.6; color:#e2e8f0; font-size: 1rem; white-space: pre-wrap;">${escapeHtml(q.problem_statement || q.question_text)}</p>
+
+                        ${q.constraints ? `
+                            <div class="section-title">Constraints</div>
+                            <div class="pre-box">${escapeHtml(q.constraints)}</div>
+                        ` : ''}
+
+                        ${q.input_format ? `
+                            <div class="section-title">Input Format</div>
+                            <div class="pre-box">${escapeHtml(q.input_format)}</div>
+                        ` : ''}
+
+                        ${q.output_format ? `
+                            <div class="section-title">Output Format</div>
+                            <div class="pre-box">${escapeHtml(q.output_format)}</div>
+                        ` : ''}
+
+                        <div class="section-title">Sample Test Cases</div>
+                        ${sampleCasesHtml || '<p style="color:var(--text-muted); font-size:0.9rem;">No sample test cases specified.</p>'}
+                    </div>
+
+                    <!-- Right Pane: Monaco Editor & Interactive Console -->
+                    <div class="editor-pane">
+                        <div class="editor-toolbar">
+                            <div style="display:flex; align-items:center; gap: 10px;">
+                                <label style="font-size:0.85rem; color:var(--text-muted);">Language:</label>
+                                <select id="codeLangSelect" onchange="handleLanguageChange()">
+                                    <option value="java">Java (OpenJDK)</option>
+                                    <option value="python" selected>Python 3</option>
+                                    <option value="cpp">C++ (g++)</option>
+                                    <option value="c">C (gcc)</option>
+                                    <option value="javascript">JavaScript (Node.js)</option>
+                                </select>
+                            </div>
+                            <div style="display:flex; gap: 8px;">
+                                <button class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.08);" onclick="resetStarterCode()">↺ Reset Code</button>
+                                <button class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.08);" onclick="toggleEditorTheme()">🌓 Theme</button>
+                            </div>
+                        </div>
+
+                        <!-- Monaco Editor Mount Point -->
+                        <div id="monacoEditor"></div>
+
+                        <!-- Interactive Terminal / Console Drawer -->
+                        <div class="console-drawer">
+                            <div class="console-nav">
+                                <button class="console-tab-btn active" id="tabBtnCustom" onclick="switchConsoleTab('custom')">Custom Input</button>
+                                <button class="console-tab-btn" id="tabBtnOutput" onclick="switchConsoleTab('output')">Run Output</button>
+                                <button class="console-tab-btn" id="tabBtnSubmit" onclick="switchConsoleTab('submit')">Submission Results</button>
+                            </div>
+
+                            <div class="console-view active" id="viewCustom">
+                                <textarea id="customInputText" placeholder="Enter custom input here to test your solution..." 
+                                          style="width: 100%; height: 90px; background: #070a10; border: 1px solid rgba(255,255,255,0.08); color: #fff; font-family: monospace; font-size: 0.85rem; padding: 8px; border-radius: 6px; resize: none;"></textarea>
+                            </div>
+
+                            <div class="console-view" id="viewOutput">
+                                <div id="runOutputContainer" style="font-family: monospace; font-size: 0.85rem; max-height: 120px; overflow-y: auto; color: #e2e8f0;">
+                                    <span style="color:var(--text-muted);">Click "Run Code" to view execution results.</span>
+                                </div>
+                            </div>
+
+                            <div class="console-view" id="viewSubmit">
+                                <div id="submitResultContainer" style="max-height: 140px; overflow-y: auto;">
+                                    <span style="color:var(--text-muted); font-size: 0.85rem;">Click "Submit Code" to evaluate against all test cases.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Bar -->
+                        <div class="action-bar">
+                            <button id="runCodeBtn" class="btn" style="background: rgba(255,255,255,0.1); color: #fff;" onclick="runCandidateCode()">▶ Run Code</button>
+                            <button id="submitCodeBtn" class="btn btn-secondary" onclick="submitCandidateCode()">✓ Submit Code</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (monacoLoaded) {
+                initMonacoForQuestion(q);
+            }
+        }
+
+        // Initialize / Update Monaco Editor
+        function initMonacoForQuestion(q) {
+            const editorElem = document.getElementById('monacoEditor');
+            if (!editorElem) return;
+
+            const langSelect = document.getElementById('codeLangSelect');
+            const selectedLang = langSelect ? langSelect.value : 'python';
+
+            let initialCode = getCodeForQuestionAndLang(q, selectedLang);
+
+            if (monacoInstance) {
+                monacoInstance.dispose();
+            }
+
+            monacoInstance = monaco.editor.create(editorElem, {
+                value: initialCode,
+                language: getMonacoLangId(selectedLang),
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 14,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                tabSize: 4,
+                roundedSelection: true
+            });
+        }
+
+        function getMonacoLangId(lang) {
+            switch(lang) {
+                case 'python': return 'python';
+                case 'java': return 'java';
+                case 'javascript': return 'javascript';
+                case 'cpp': return 'cpp';
+                case 'c': return 'c';
+                default: return 'plaintext';
+            }
+        }
+
+        function getCodeForQuestionAndLang(q, lang) {
+            const qId = q.question_id;
+            if (codingCodes[qId] && codingCodes[qId][lang]) {
+                return codingCodes[qId][lang];
+            }
+            if (q.templates && q.templates.length > 0) {
+                const tmpl = q.templates.find(t => t.language.toLowerCase() === lang.toLowerCase());
+                if (tmpl && tmpl.starter_code) {
+                    return tmpl.starter_code;
+                }
+            }
+            // Fallback default starter codes
+            switch(lang) {
+                case 'python': return '# Write your solution in Python 3\\nimport sys\\n\\ndef main():\\n    # Read input from standard input\\n    pass\\n\\nif __name__ == "__main__":\\n    main()';
+                case 'java': return 'import java.util.*;\\n\\npublic class Solution {\\n    public static void main(String[] args) {\\n        Scanner sc = new Scanner(System.in);\\n        // Write your solution here\\n    }\\n}';
+                case 'cpp': return '#include <iostream>\\nusing namespace std;\\n\\nint main() {\\n    // Write your solution here\\n    return 0;\\n}';
+                case 'c': return '#include <stdio.h>\\n\\nint main() {\\n    // Write your solution here\\n    return 0;\\n}';
+                case 'javascript': return 'const fs = require("fs");\\n\\nfunction main() {\\n    const input = fs.readFileSync(0, "utf-8");\\n    // Write your solution here\\n}\\n\\nmain();';
+                default: return '';
+            }
+        }
+
+        function handleLanguageChange() {
+            const q = examQuestions[currentQuestionIndex];
+            const lang = document.getElementById('codeLangSelect').value;
+            const code = getCodeForQuestionAndLang(q, lang);
+            if (monacoInstance) {
+                monaco.editor.setModelLanguage(monacoInstance.getModel(), getMonacoLangId(lang));
+                monacoInstance.setValue(code);
+            }
+        }
+
+        function resetStarterCode() {
+            if (!confirm('Are you sure you want to reset your code to the default starter template?')) return;
+            const q = examQuestions[currentQuestionIndex];
+            const lang = document.getElementById('codeLangSelect').value;
+            delete codingCodes[q.question_id]?.[lang];
+            const starter = getCodeForQuestionAndLang(q, lang);
+            if (monacoInstance) {
+                monacoInstance.setValue(starter);
+            }
+        }
+
+        let currentTheme = 'vs-dark';
+        function toggleEditorTheme() {
+            currentTheme = currentTheme === 'vs-dark' ? 'vs-light' : 'vs-dark';
+            monaco.editor.setTheme(currentTheme);
+        }
+
+        function switchConsoleTab(tab) {
+            document.querySelectorAll('.console-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.console-view').forEach(v => v.classList.remove('active'));
+
+            if (tab === 'custom') {
+                document.getElementById('tabBtnCustom').classList.add('active');
+                document.getElementById('viewCustom').classList.add('active');
+            } else if (tab === 'output') {
+                document.getElementById('tabBtnOutput').classList.add('active');
+                document.getElementById('viewOutput').classList.add('active');
+            } else if (tab === 'submit') {
+                document.getElementById('tabBtnSubmit').classList.add('active');
+                document.getElementById('viewSubmit').classList.add('active');
+            }
+        }
+
+        // Run Code against Custom Input
+        async function runCandidateCode() {
+            const btn = document.getElementById('runCodeBtn');
+            const outputBox = document.getElementById('runOutputContainer');
+            const q = examQuestions[currentQuestionIndex];
+            const lang = document.getElementById('codeLangSelect').value;
+            const sourceCode = monacoInstance ? monacoInstance.getValue() : '';
+            const customInput = document.getElementById('customInputText').value;
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Executing...';
+            switchConsoleTab('output');
+            outputBox.innerHTML = '<span style="color:#60a5fa;">Running code on sandbox server...</span>';
+
+            try {
+                const res = await fetch(API_BASE + '/student/code/run', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        question_id: q.question_id,
+                        language: lang,
+                        source_code: sourceCode,
+                        custom_input: customInput
+                    })
+                });
+
+                const data = await res.json();
+                let html = '';
+
+                if (data.status === 'SUCCESS') {
+                    html = `
+                        <div style="color:#34d399; font-weight:700; margin-bottom:4px;">✓ Execution Succeeded (${data.executionTimeMs || 0} ms)</div>
+                        <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:2px;">Standard Output:</div>
+                        <div class="pre-box" style="margin-bottom:4px;">${escapeHtml(data.stdout || '<Empty Output>')}</div>
+                    `;
+                } else if (data.status === 'COMPILATION_ERROR') {
+                    html = `
+                        <div style="color:#f87171; font-weight:700; margin-bottom:4px;">❌ Compilation Error:</div>
+                        <div class="pre-box" style="color:#fca5a5; margin-bottom:4px;">${escapeHtml(data.compileOutput || data.stderr)}</div>
+                    `;
+                } else if (data.status === 'TIMEOUT') {
+                    html = `
+                        <div style="color:#fbbf24; font-weight:700; margin-bottom:4px;">⚠️ Time Limit Exceeded (${data.executionTimeMs} ms)</div>
+                        <div style="color:#e2e8f0;">Your program took too long to finish. Check for infinite loops.</div>
+                    `;
+                } else {
+                    html = `
+                        <div style="color:#f87171; font-weight:700; margin-bottom:4px;">❌ Runtime Error:</div>
+                        <div class="pre-box" style="color:#fca5a5;">${escapeHtml(data.stderr || data.error || 'Execution failed')}</div>
+                    `;
+                }
+
+                outputBox.innerHTML = html;
+            } catch (err) {
+                outputBox.innerHTML = `<span style="color:#f87171;">Error executing code: ${err.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶ Run Code';
+            }
+        }
+
+        // Submit Code for Official Evaluation
+        async function submitCandidateCode() {
+            const btn = document.getElementById('submitCodeBtn');
+            const submitBox = document.getElementById('submitResultContainer');
+            const q = examQuestions[currentQuestionIndex];
+            const lang = document.getElementById('codeLangSelect').value;
+            const sourceCode = monacoInstance ? monacoInstance.getValue() : '';
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Evaluating...';
+            switchConsoleTab('submit');
+            submitBox.innerHTML = '<span style="color:#60a5fa;">Evaluating solution against all test cases...</span>';
+
+            try {
+                const res = await fetch(API_BASE + '/student/code/submit', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        attempt_id: parseInt(attemptId),
+                        question_id: q.question_id,
+                        language: lang,
+                        source_code: sourceCode
+                    })
+                });
+
+                const data = await res.json();
+                let isAccepted = data.status === 'ACCEPTED';
+                let statusColor = isAccepted ? '#34d399' : (data.status === 'WRONG_ANSWER' ? '#fbbf24' : '#f87171');
+
+                let html = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.08);">
+                        <div>
+                            <span style="font-weight:700; font-size:1.1rem; color:${statusColor};">${data.status}</span>
+                            <span style="margin-left:8px; font-size:0.9rem; color:var(--text-muted);">${data.passedTestCases}/${data.totalTestCases} Test Cases Passed</span>
+                        </div>
+                        <div>
+                            <span style="font-size:1.1rem; font-weight:700; color:#818cf8;">Score: ${data.scoreObtained} / ${data.maxMarks}</span>
+                        </div>
+                    </div>
+                `;
+
+                (data.testCaseResults || []).forEach((tc, idx) => {
+                    const passed = tc.status === 'PASSED';
+                    html += `
+                        <div class="testcase-item" style="display:flex; justify-content:space-between; align-items:center; padding: 6px 12px; margin-bottom:5px;">
+                            <span>${tc.isSample ? 'Sample ' : 'Hidden '}Case #${idx + 1}</span>
+                            <div>
+                                <span class="status-tag status-${tc.status.toLowerCase()}">${tc.status}</span>
+                                <span style="font-size:0.8rem; color:var(--text-muted); margin-left:6px;">${tc.executionTimeMs || 0}ms</span>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                submitBox.innerHTML = html;
+
+                // Mark current question pill as answered
+                const pills = document.querySelectorAll('.q-nav-pill');
+                if (pills[currentQuestionIndex]) {
+                    pills[currentQuestionIndex].classList.add('answered');
+                }
+            } catch (err) {
+                submitBox.innerHTML = `<span style="color:#f87171;">Submission failed: ${err.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '✓ Submit Code';
+            }
+        }
+
+        // Save MCQ Response
+        async function handleOptionSelect(questionId, optionId) {
+            studentAnswers[questionId] = optionId;
+            document.querySelectorAll(`[id^="lbl_"]`).forEach(el => el.classList.remove('selected'));
+            const selLbl = document.getElementById(`lbl_${optionId}`);
+            if (selLbl) selLbl.classList.add('selected');
+
+            try {
+                await fetch(API_BASE + '/student/responses', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        attempt_id: parseInt(attemptId),
+                        question_id: questionId,
+                        selected_option_id: optionId
+                    })
+                });
+
+                // Mark navigation pill
+                const pills = document.querySelectorAll('.q-nav-pill');
+                if (pills[currentQuestionIndex]) {
+                    pills[currentQuestionIndex].classList.add('answered');
+                }
+            } catch(e) {
+                console.error("Error saving response:", e);
+            }
+        }
+
+        // Submit Full Exam
+        function confirmSubmitExam() {
+            if (!confirm('Are you sure you want to finish and submit this examination? Once submitted, your scores will be permanently recorded.')) {
+                return;
+            }
+            submitExam();
+        }
+
+        async function submitExam() {
+            try {
+                isSubmitting = true;
+                const res = await fetch(API_BASE + `/student/exams/${attemptId}/submit`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                if (res.ok) {
+                    localStorage.removeItem('active_attempt_id');
+                    localStorage.removeItem('active_exam_id');
+                    window.location.href = 'result.html';
+                } else {
+                    isSubmitting = false;
+                    const err = await res.json();
+                    alert(err.error || 'Failed to submit exam');
+                }
+            } catch(e) {
+                isSubmitting = false;
+                alert('Error submitting exam: ' + e.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Load exam on start
+        loadExam();
+    </script>
+</body>
+</html>

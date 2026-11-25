@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Results | Smart Exam Platform</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <h2>Performance & Results</h2>
+        <div class="nav-links">
+            <span id="userNameDisplay">Student</span>
+            <a href="student.html">Dashboard</a>
+            <a onclick="logout()">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Your Examination Results</h1>
+        <div class="glass-panel" style="margin-top: 2rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Score Obtained</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        checkAuth('Student');
+
+        async function loadResults() {
+            try {
+                const res = await fetch(API_BASE + '/student/results', { headers: getHeaders() });
+                const results = await res.json();
+                const tbody = document.getElementById('resultBody');
+
+                if (!Array.isArray(results) || results.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-muted); padding: 2rem 1rem;">No results declared yet. Complete an exam to view your score.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                results.forEach(r => {
+                    const status = r.result_status || r.resultStatus || 'Under Review';
+                    const isPass = status === 'PASS' || status === 'AUTO_GENERATED';
+                    const score = r.score !== null && r.score !== undefined ? r.score : 'Pending';
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-weight:600; font-size: 1.05rem;">${r.subject}</td>
+                            <td style="font-size: 1.3rem; font-weight:700; color: #6ee7b7">${score}</td>
+                            <td>
+                                <span class="status-tag status-${status.toLowerCase()}">${status}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                document.getElementById('resultBody').innerHTML = 
+                    `<tr><td colspan="3" style="color:#f87171;">Failed to load results: ${err.message}</td></tr>`;
+            }
+        }
+
+        loadResults();
+    </script>
+</body>
+</html>
