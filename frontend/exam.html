@@ -3,46 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Exam | Active Examination</title>
+    <title>Exam in progress | Smart Exam</title>
     <link rel="stylesheet" href="css/style.css">
     <!-- Monaco Editor AMD Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
-    <style>
-        .question-card { margin-bottom: 2rem; border-left: 4px solid var(--primary); }
-        .option-lbl { display: block; padding: 12px 16px; background: rgba(255,255,255,0.04); margin-bottom: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; border: 1px solid rgba(255,255,255,0.06); }
-        .option-lbl:hover { background: rgba(79, 70, 229, 0.2); border-color: rgba(79, 70, 229, 0.4); }
-        .option-lbl.selected { background: rgba(79, 70, 229, 0.3); border-color: var(--primary); font-weight: 600; }
-        input[type="radio"] { width: auto; margin-right: 12px; }
-        .exam-header { display: flex; justify-content: space-between; align-items: center; }
-        .loading-spinner { text-align: center; padding: 3rem; color: var(--text-muted); }
-    </style>
 </head>
 <body>
-    <div class="navbar" style="background: rgba(185, 28, 28, 0.85); border-bottom: 1px solid rgba(239, 68, 68, 0.3);">
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <h2 style="margin: 0; font-size: 1.25rem;">Active Assessment</h2>
-            <span id="examSubjectBadge" class="badge" style="background: rgba(0,0,0,0.4); color: #fff;">Exam</span>
+    <nav class="navbar exam-bar">
+        <div class="exam-title">
+            <span class="brand"><span class="brand-mark" aria-hidden="true">S</span><span id="examSubjectBadge">Exam</span></span>
         </div>
-        <div class="nav-links" style="display:flex; align-items:center; gap: 1.5rem;">
-            <span id="timerDisplay" style="font-weight: 700; color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums;">⏱️ --:--</span>
-            <span id="warningMsg" style="font-weight: 700; color: #fee2e2; font-size: 0.85rem; letter-spacing: 0.05em;">
-                🛡️ PROCTORING ACTIVE (NO TAB SWITCHES)
-            </span>
-            <button class="btn btn-secondary" style="padding: 6px 16px; font-size: 0.9rem;" onclick="confirmSubmitExam()">Finish & Submit</button>
+        <div class="nav-links">
+            <span class="proctor-note" id="warningMsg">Stay on this tab. Tab switches are recorded.</span>
+            <span id="timerDisplay" class="timer-chip" aria-live="polite">--:--</span>
+            <button class="btn btn-primary btn-sm" onclick="confirmSubmitExam()">Finish exam</button>
         </div>
-    </div>
+    </nav>
 
-    <div class="container" style="max-width: 1400px; padding: 1.5rem;">
+    <main class="container" style="max-width: 1400px; padding-top: 1.5rem;">
         <div id="msg"></div>
 
-        <!-- Question Navigation Bar -->
+        <!-- Question navigator -->
         <div class="q-nav-strip" id="qNavStrip"></div>
 
-        <!-- Main Question View Container -->
+        <!-- Current question -->
         <div id="questionDisplayArea">
-            <div class="loading-spinner">Loading exam questions...</div>
+            <div class="loading-spinner">Loading questions...</div>
         </div>
-    </div>
+    </main>
 
     <script src="js/api.js"></script>
     <script>
@@ -62,6 +50,7 @@
         let studentAnswers = {}; // question_id -> option_id (for MCQ)
         let codingCodes = {};    // question_id -> { language: code }
         let monacoLoaded = false;
+        let currentTheme = 'vs'; // light editor by default
 
         // Countdown timer. The server enforces the real limit (start_time + duration);
         // this shows the time left and auto-submits when it reaches zero.
@@ -93,12 +82,12 @@
                     const left = Math.max(0, deadline - Date.now());
                     const m = Math.floor(left / 60000);
                     const s = Math.floor((left % 60000) / 1000);
-                    el.textContent = `⏱️ ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                    if (left <= 60000) el.style.color = '#fde047';
+                    el.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                    el.classList.toggle('low', left <= 60000);
                     if (left === 0) {
                         clearInterval(timerId);
                         if (!isSubmitting) {
-                            alert('Time is up! Your exam is being submitted.');
+                            alert('Time is up. Your exam is being submitted now.');
                             submitExam();
                         }
                     }
@@ -111,13 +100,33 @@
         }
 
         // Initialize Monaco Editor Loader
-        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
-            monacoLoaded = true;
-            if (examQuestions.length > 0 && examQuestions[currentQuestionIndex].question_type === 'CODING') {
-                initMonacoForQuestion(examQuestions[currentQuestionIndex]);
-            }
-        });
+        // If the CDN is unreachable, the page still works with a plain code box (see createPlainEditor)
+        if (typeof require === 'function' && typeof require.config === 'function') {
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+            require(['vs/editor/editor.main'], function() {
+                const q = examQuestions[currentQuestionIndex];
+                // Keep anything typed into the plain box before Monaco arrived
+                if (q && q.question_type === 'CODING' && monacoInstance && document.getElementById('codeLangSelect')) {
+                    const lang = document.getElementById('codeLangSelect').value;
+                    if (!codingCodes[q.question_id]) codingCodes[q.question_id] = {};
+                    codingCodes[q.question_id][lang] = monacoInstance.getValue();
+                }
+                monacoLoaded = true;
+                if (q && q.question_type === 'CODING') {
+                    initMonacoForQuestion(q);
+                }
+            });
+        } else {
+            console.warn('Code editor could not load; using a plain text box instead.');
+        }
+
+        // Fallback editor with the same methods the page uses on Monaco
+        function createPlainEditor(elem, code) {
+            elem.innerHTML = '<textarea class="plain-editor" spellcheck="false" aria-label="Code editor"></textarea>';
+            const ta = elem.querySelector('textarea');
+            ta.value = code;
+            return { getValue: () => ta.value, setValue: v => { ta.value = v; }, dispose: () => {} };
+        }
 
         // Tab Switch Proctoring
         document.addEventListener("visibilitychange", async () => {
@@ -129,7 +138,7 @@
                         body: JSON.stringify({ attempt_id: parseInt(attemptId), action: 'TAB_SWITCH' })
                     });
                 } catch(e) {}
-                alert('WARNING: Tab switch detected! This activity has been recorded in your proctoring log.');
+                alert('You left the exam tab. This has been recorded. More than 5 switches flags your attempt for review.');
             }
         });
 
@@ -141,7 +150,7 @@
 
                 examQuestions = await res.json();
                 if (examQuestions.length === 0) {
-                    document.getElementById('questionDisplayArea').innerHTML = '<p class="glass-panel">No questions found for this exam.</p>';
+                    document.getElementById('questionDisplayArea').innerHTML = '<p class="panel">This exam has no questions yet. Ask your teacher to add some.</p>';
                     return;
                 }
 
@@ -149,7 +158,7 @@
                 renderCurrentQuestion();
             } catch (err) {
                 console.error("Error loading questions:", err);
-                document.getElementById('msg').innerHTML = `<div class="alert error">Failed to load exam questions: ${err.message}</div>`;
+                document.getElementById('msg').innerHTML = `<div class="alert error">Couldn't load the questions: ${err.message}</div>`;
             }
         }
 
@@ -159,12 +168,13 @@
             strip.innerHTML = '';
 
             examQuestions.forEach((q, idx) => {
-                const pill = document.createElement('div');
-                pill.className = `q-nav-pill ${idx === currentQuestionIndex ? 'active' : ''}`;
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = `q-nav-pill ${idx === currentQuestionIndex ? 'active' : ''} ${studentAnswers[q.question_id] ? 'answered' : ''}`;
                 const isCoding = q.question_type === 'CODING';
                 pill.innerHTML = `
                     <span>Q${idx + 1}</span>
-                    <span class="badge ${isCoding ? 'badge-coding' : 'badge-mcq'}">${isCoding ? 'Code' : 'MCQ'}</span>
+                    <span class="badge">${isCoding ? 'Code' : 'MCQ'}</span>
                 `;
                 pill.onclick = () => switchQuestion(idx);
                 strip.appendChild(pill);
@@ -211,31 +221,24 @@
                 `;
             });
 
+            const isFirst = currentQuestionIndex === 0;
+            const isLast = currentQuestionIndex === examQuestions.length - 1;
             container.innerHTML = `
-                <div class="glass-panel question-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                        <h2>Question ${currentQuestionIndex + 1}</h2>
-                        <div>
-                            <span class="badge badge-mcq">MCQ</span>
-                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${q.difficulty || 'MEDIUM'}</span>
-                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">${q.marks} Marks</span>
+                <article class="panel sheet question-card">
+                    <div class="q-head">
+                        <h2>Question ${currentQuestionIndex + 1} <span class="muted" style="font-weight:500; font-size:1rem;">of ${examQuestions.length}</span></h2>
+                        <div class="q-tags">
+                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${(q.difficulty || 'MEDIUM').charAt(0) + (q.difficulty || 'MEDIUM').slice(1).toLowerCase()}</span>
+                            <span class="badge badge-plain">${q.marks} ${q.marks == 1 ? 'mark' : 'marks'}</span>
                         </div>
                     </div>
-                    <p style="font-size:1.15rem; line-height: 1.6; margin-bottom: 1.5rem; color: #f1f5f9;">
-                        ${escapeHtml(q.question_text)}
-                    </p>
-                    <div style="margin-top: 1.5rem;">
-                        ${optionsHtml}
+                    <p class="q-text">${escapeHtml(q.question_text)}</p>
+                    <div>${optionsHtml}</div>
+                    <div class="q-actions">
+                        <button class="btn" ${isFirst ? 'disabled' : ''} onclick="switchQuestion(${currentQuestionIndex - 1})">Previous</button>
+                        <button class="btn btn-primary" ${isLast ? 'disabled' : ''} onclick="switchQuestion(${currentQuestionIndex + 1})">Next question</button>
                     </div>
-                    <div style="display:flex; justify-content:space-between; margin-top:2rem;">
-                        <button class="btn" style="background: rgba(255,255,255,0.1);" 
-                                ${currentQuestionIndex === 0 ? 'disabled' : ''} 
-                                onclick="switchQuestion(${currentQuestionIndex - 1})">← Previous</button>
-                        <button class="btn btn-primary" 
-                                ${currentQuestionIndex === examQuestions.length - 1 ? 'disabled' : ''} 
-                                onclick="switchQuestion(${currentQuestionIndex + 1})">Next →</button>
-                    </div>
-                </div>
+                </article>
             `;
         }
 
@@ -244,11 +247,11 @@
             let sampleCasesHtml = '';
             (q.sample_test_cases || []).forEach((stc, sIdx) => {
                 sampleCasesHtml += `
-                    <div class="testcase-item">
-                        <strong>Sample Test Case ${sIdx + 1}</strong>
-                        <div style="margin-top:5px; font-size:0.85rem; color:var(--text-muted);">Input:</div>
-                        <div class="pre-box" style="margin-bottom:6px;">${escapeHtml(stc.input_data)}</div>
-                        <div style="font-size:0.85rem; color:var(--text-muted);">Expected Output:</div>
+                    <div class="testcase-item block">
+                        <strong>Example ${sIdx + 1}</strong>
+                        <div class="case-label">Input</div>
+                        <div class="pre-box">${escapeHtml(stc.input_data)}</div>
+                        <div class="case-label">Expected output</div>
                         <div class="pre-box" style="margin-bottom:0;">${escapeHtml(stc.expected_output)}</div>
                     </div>
                 `;
@@ -260,14 +263,14 @@
                     <div class="problem-pane">
                         <h2>${escapeHtml(q.question_text)}</h2>
                         <div class="meta-row">
-                            <span class="badge badge-coding">Coding Assessment</span>
-                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${q.difficulty || 'MEDIUM'}</span>
-                            <span class="badge" style="background: rgba(255,255,255,0.1); color:#fff;">${q.marks} Marks</span>
-                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color:#a5b4fc;">Topic: ${escapeHtml(q.topic || 'General')}</span>
+                            <span class="badge badge-coding">Coding</span>
+                            <span class="badge badge-${(q.difficulty || 'medium').toLowerCase()}">${(q.difficulty || 'MEDIUM').charAt(0) + (q.difficulty || 'MEDIUM').slice(1).toLowerCase()}</span>
+                            <span class="badge badge-plain">${q.marks} marks</span>
+                            <span class="badge badge-plain">${escapeHtml(q.topic || 'General')}</span>
                         </div>
 
-                        <div class="section-title">Problem Statement</div>
-                        <p style="line-height:1.6; color:#e2e8f0; font-size: 1rem; white-space: pre-wrap;">${escapeHtml(q.problem_statement || q.question_text)}</p>
+                        <div class="section-title">Problem</div>
+                        <p class="problem-text">${escapeHtml(q.problem_statement || q.question_text)}</p>
 
                         ${q.constraints ? `
                             <div class="section-title">Constraints</div>
@@ -275,24 +278,24 @@
                         ` : ''}
 
                         ${q.input_format ? `
-                            <div class="section-title">Input Format</div>
+                            <div class="section-title">Input format</div>
                             <div class="pre-box">${escapeHtml(q.input_format)}</div>
                         ` : ''}
 
                         ${q.output_format ? `
-                            <div class="section-title">Output Format</div>
+                            <div class="section-title">Output format</div>
                             <div class="pre-box">${escapeHtml(q.output_format)}</div>
                         ` : ''}
 
-                        <div class="section-title">Sample Test Cases</div>
-                        ${sampleCasesHtml || '<p style="color:var(--text-muted); font-size:0.9rem;">No sample test cases specified.</p>'}
+                        <div class="section-title">Examples</div>
+                        ${sampleCasesHtml || '<p class="muted">No examples for this problem.</p>'}
                     </div>
 
                     <!-- Right Pane: Monaco Editor & Interactive Console -->
                     <div class="editor-pane">
                         <div class="editor-toolbar">
                             <div style="display:flex; align-items:center; gap: 10px;">
-                                <label style="font-size:0.85rem; color:var(--text-muted);">Language:</label>
+                                <label for="codeLangSelect">Language</label>
                                 <select id="codeLangSelect" onchange="handleLanguageChange()">
                                     <option value="java">Java (OpenJDK)</option>
                                     <option value="python" selected>Python 3</option>
@@ -302,8 +305,8 @@
                                 </select>
                             </div>
                             <div style="display:flex; gap: 8px;">
-                                <button class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.08);" onclick="resetStarterCode()">↺ Reset Code</button>
-                                <button class="btn" style="padding: 4px 10px; font-size: 0.8rem; background: rgba(255,255,255,0.08);" onclick="toggleEditorTheme()">🌓 Theme</button>
+                                <button class="btn btn-ghost btn-sm" onclick="resetStarterCode()">Reset code</button>
+                                <button class="btn btn-ghost btn-sm" onclick="toggleEditorTheme(this)">Dark editor</button>
                             </div>
                         </div>
 
@@ -313,41 +316,38 @@
                         <!-- Interactive Terminal / Console Drawer -->
                         <div class="console-drawer">
                             <div class="console-nav">
-                                <button class="console-tab-btn active" id="tabBtnCustom" onclick="switchConsoleTab('custom')">Custom Input</button>
-                                <button class="console-tab-btn" id="tabBtnOutput" onclick="switchConsoleTab('output')">Run Output</button>
-                                <button class="console-tab-btn" id="tabBtnSubmit" onclick="switchConsoleTab('submit')">Submission Results</button>
+                                <button class="console-tab-btn active" id="tabBtnCustom" onclick="switchConsoleTab('custom')">Your input</button>
+                                <button class="console-tab-btn" id="tabBtnOutput" onclick="switchConsoleTab('output')">Output</button>
+                                <button class="console-tab-btn" id="tabBtnSubmit" onclick="switchConsoleTab('submit')">Test results</button>
                             </div>
 
                             <div class="console-view active" id="viewCustom">
-                                <textarea id="customInputText" placeholder="Enter custom input here to test your solution..." 
-                                          style="width: 100%; height: 90px; background: #070a10; border: 1px solid rgba(255,255,255,0.08); color: #fff; font-family: monospace; font-size: 0.85rem; padding: 8px; border-radius: 6px; resize: none;"></textarea>
+                                <textarea id="customInputText" aria-label="Custom input" placeholder="Type input for your program, then press Run code."></textarea>
                             </div>
 
                             <div class="console-view" id="viewOutput">
-                                <div id="runOutputContainer" style="font-family: monospace; font-size: 0.85rem; max-height: 120px; overflow-y: auto; color: #e2e8f0;">
-                                    <span style="color:var(--text-muted);">Click "Run Code" to view execution results.</span>
+                                <div id="runOutputContainer" class="console-scroll">
+                                    <span class="muted">Press Run code to see what your program prints.</span>
                                 </div>
                             </div>
 
                             <div class="console-view" id="viewSubmit">
-                                <div id="submitResultContainer" style="max-height: 140px; overflow-y: auto;">
-                                    <span style="color:var(--text-muted); font-size: 0.85rem;">Click "Submit Code" to evaluate against all test cases.</span>
+                                <div id="submitResultContainer" class="console-scroll">
+                                    <span class="muted">Press Submit code to grade your solution against every test case.</span>
                                 </div>
                             </div>
                         </div>
 
                         <!-- Action Bar -->
                         <div class="action-bar">
-                            <button id="runCodeBtn" class="btn" style="background: rgba(255,255,255,0.1); color: #fff;" onclick="runCandidateCode()">▶ Run Code</button>
-                            <button id="submitCodeBtn" class="btn btn-secondary" onclick="submitCandidateCode()">✓ Submit Code</button>
+                            <button id="runCodeBtn" class="btn" onclick="runCandidateCode()">Run code</button>
+                            <button id="submitCodeBtn" class="btn btn-primary" onclick="submitCandidateCode()">Submit code</button>
                         </div>
                     </div>
                 </div>
             `;
 
-            if (monacoLoaded) {
-                initMonacoForQuestion(q);
-            }
+            initMonacoForQuestion(q);
         }
 
         // Initialize / Update Monaco Editor
@@ -364,10 +364,16 @@
                 monacoInstance.dispose();
             }
 
+            if (!monacoLoaded) {
+                monacoInstance = createPlainEditor(editorElem, initialCode);
+                return;
+            }
+
+            editorElem.innerHTML = '';
             monacoInstance = monaco.editor.create(editorElem, {
                 value: initialCode,
                 language: getMonacoLangId(selectedLang),
-                theme: 'vs-dark',
+                theme: currentTheme,
                 automaticLayout: true,
                 fontSize: 14,
                 minimap: { enabled: false },
@@ -415,13 +421,13 @@
             const lang = document.getElementById('codeLangSelect').value;
             const code = getCodeForQuestionAndLang(q, lang);
             if (monacoInstance) {
-                monaco.editor.setModelLanguage(monacoInstance.getModel(), getMonacoLangId(lang));
+                if (monacoLoaded) monaco.editor.setModelLanguage(monacoInstance.getModel(), getMonacoLangId(lang));
                 monacoInstance.setValue(code);
             }
         }
 
         function resetStarterCode() {
-            if (!confirm('Are you sure you want to reset your code to the default starter template?')) return;
+            if (!confirm('Replace your code with the starter template? Your current code for this language will be lost.')) return;
             const q = examQuestions[currentQuestionIndex];
             const lang = document.getElementById('codeLangSelect').value;
             delete codingCodes[q.question_id]?.[lang];
@@ -431,10 +437,11 @@
             }
         }
 
-        let currentTheme = 'vs-dark';
-        function toggleEditorTheme() {
-            currentTheme = currentTheme === 'vs-dark' ? 'vs-light' : 'vs-dark';
+        function toggleEditorTheme(btn) {
+            if (!monacoLoaded) return;
+            currentTheme = currentTheme === 'vs-dark' ? 'vs' : 'vs-dark';
             monaco.editor.setTheme(currentTheme);
+            if (btn) btn.textContent = currentTheme === 'vs-dark' ? 'Light editor' : 'Dark editor';
         }
 
         function switchConsoleTab(tab) {
@@ -463,9 +470,9 @@
             const customInput = document.getElementById('customInputText').value;
 
             btn.disabled = true;
-            btn.textContent = '⏳ Executing...';
+            btn.textContent = 'Running...';
             switchConsoleTab('output');
-            outputBox.innerHTML = '<span style="color:#60a5fa;">Running code on sandbox server...</span>';
+            outputBox.innerHTML = '<span class="muted">Running your code...</span>';
 
             try {
                 const res = await fetch(API_BASE + '/student/code/run', {
@@ -484,33 +491,33 @@
 
                 if (data.status === 'SUCCESS') {
                     html = `
-                        <div style="color:#34d399; font-weight:700; margin-bottom:4px;">✓ Execution Succeeded (${data.executionTimeMs || 0} ms)</div>
-                        <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:2px;">Standard Output:</div>
-                        <div class="pre-box" style="margin-bottom:4px;">${escapeHtml(data.stdout || '<Empty Output>')}</div>
+                        <div class="run-status ok">Ran successfully in ${data.executionTimeMs || 0} ms</div>
+                        <div class="case-label">Output</div>
+                        <div class="pre-box">${escapeHtml(data.stdout || '(no output)')}</div>
                     `;
                 } else if (data.status === 'COMPILATION_ERROR') {
                     html = `
-                        <div style="color:#f87171; font-weight:700; margin-bottom:4px;">❌ Compilation Error:</div>
-                        <div class="pre-box" style="color:#fca5a5; margin-bottom:4px;">${escapeHtml(data.compileOutput || data.stderr)}</div>
+                        <div class="run-status bad">Didn't compile</div>
+                        <div class="pre-box error">${escapeHtml(data.compileOutput || data.stderr)}</div>
                     `;
                 } else if (data.status === 'TIMEOUT') {
                     html = `
-                        <div style="color:#fbbf24; font-weight:700; margin-bottom:4px;">⚠️ Time Limit Exceeded (${data.executionTimeMs} ms)</div>
-                        <div style="color:#e2e8f0;">Your program took too long to finish. Check for infinite loops.</div>
+                        <div class="run-status warn">Took too long (${data.executionTimeMs} ms)</div>
+                        <div>Your program didn't finish within the time limit. Check for an infinite loop or a missing input read.</div>
                     `;
                 } else {
                     html = `
-                        <div style="color:#f87171; font-weight:700; margin-bottom:4px;">❌ Runtime Error:</div>
-                        <div class="pre-box" style="color:#fca5a5;">${escapeHtml(data.stderr || data.error || 'Execution failed')}</div>
+                        <div class="run-status bad">Crashed while running</div>
+                        <div class="pre-box error">${escapeHtml(data.stderr || data.error || data.message || 'The program stopped with an error.')}</div>
                     `;
                 }
 
                 outputBox.innerHTML = html;
             } catch (err) {
-                outputBox.innerHTML = `<span style="color:#f87171;">Error executing code: ${err.message}</span>`;
+                outputBox.innerHTML = `<span class="run-status bad">Couldn't run your code: ${err.message}</span>`;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '▶ Run Code';
+                btn.textContent = 'Run code';
             }
         }
 
@@ -523,9 +530,9 @@
             const sourceCode = monacoInstance ? monacoInstance.getValue() : '';
 
             btn.disabled = true;
-            btn.textContent = '⏳ Evaluating...';
+            btn.textContent = 'Grading...';
             switchConsoleTab('submit');
-            submitBox.innerHTML = '<span style="color:#60a5fa;">Evaluating solution against all test cases...</span>';
+            submitBox.innerHTML = '<span class="muted">Grading against every test case...</span>';
 
             try {
                 const res = await fetch(API_BASE + '/student/code/submit', {
@@ -540,29 +547,37 @@
                 });
 
                 const data = await res.json();
-                let isAccepted = data.status === 'ACCEPTED';
-                let statusColor = isAccepted ? '#34d399' : (data.status === 'WRONG_ANSWER' ? '#fbbf24' : '#f87171');
+                if (!res.ok) {
+                    submitBox.innerHTML = `<span class="run-status bad">${escapeHtml(data.message || data.error || 'Submission failed.')}</span>`;
+                    return;
+                }
+                const verdicts = {
+                    ACCEPTED: ['All tests passed', 'ok'],
+                    WRONG_ANSWER: ['Some tests failed', 'warn'],
+                    TIME_LIMIT_EXCEEDED: ['Too slow on some tests', 'warn'],
+                    RUNTIME_ERROR: ['Crashed on some tests', 'bad'],
+                    COMPILATION_ERROR: ["Didn't compile", 'bad']
+                };
+                const [verdictText, verdictClass] = verdicts[data.status] || [data.status, 'bad'];
 
                 let html = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.08);">
+                    <div class="submit-summary">
                         <div>
-                            <span style="font-weight:700; font-size:1.1rem; color:${statusColor};">${data.status}</span>
-                            <span style="margin-left:8px; font-size:0.9rem; color:var(--text-muted);">${data.passedTestCases}/${data.totalTestCases} Test Cases Passed</span>
+                            <span class="run-status ${verdictClass}" style="font-size:1.05rem;">${verdictText}</span>
+                            <span class="muted" style="margin-left:0.5rem;">${data.passedTestCases} of ${data.totalTestCases} passed</span>
                         </div>
-                        <div>
-                            <span style="font-size:1.1rem; font-weight:700; color:#818cf8;">Score: ${data.scoreObtained} / ${data.maxMarks}</span>
-                        </div>
+                        <span class="submit-score">${data.scoreObtained} / ${data.maxMarks} marks</span>
                     </div>
                 `;
 
                 (data.testCaseResults || []).forEach((tc, idx) => {
                     const passed = tc.status === 'PASSED';
                     html += `
-                        <div class="testcase-item" style="display:flex; justify-content:space-between; align-items:center; padding: 6px 12px; margin-bottom:5px;">
-                            <span>${tc.isSample ? 'Sample ' : 'Hidden '}Case #${idx + 1}</span>
+                        <div class="testcase-item">
+                            <span>${tc.isSample ? 'Example' : 'Hidden test'} ${idx + 1}</span>
                             <div>
-                                <span class="status-tag status-${tc.status.toLowerCase()}">${tc.status}</span>
-                                <span style="font-size:0.8rem; color:var(--text-muted); margin-left:6px;">${tc.executionTimeMs || 0}ms</span>
+                                <span class="status-tag status-${tc.status.toLowerCase()}">${tc.status.charAt(0) + tc.status.slice(1).toLowerCase()}</span>
+                                <span class="muted" style="font-size:0.8rem; margin-left:0.4rem;">${tc.executionTimeMs || 0} ms</span>
                             </div>
                         </div>
                     `;
@@ -576,10 +591,10 @@
                     pills[currentQuestionIndex].classList.add('answered');
                 }
             } catch (err) {
-                submitBox.innerHTML = `<span style="color:#f87171;">Submission failed: ${err.message}</span>`;
+                submitBox.innerHTML = `<span class="run-status bad">Couldn't submit: ${err.message}</span>`;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '✓ Submit Code';
+                btn.textContent = 'Submit code';
             }
         }
 
@@ -591,7 +606,7 @@
             if (selLbl) selLbl.classList.add('selected');
 
             try {
-                await fetch(API_BASE + '/student/responses', {
+                const res = await fetch(API_BASE + '/student/responses', {
                     method: 'POST',
                     headers: getHeaders(),
                     body: JSON.stringify({
@@ -600,6 +615,11 @@
                         selected_option_id: optionId
                     })
                 });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    showMsg('msg', err.message || err.error || 'Your answer was not saved. Try selecting it again.', true);
+                    return;
+                }
 
                 // Mark navigation pill
                 const pills = document.querySelectorAll('.q-nav-pill');
@@ -608,12 +628,13 @@
                 }
             } catch(e) {
                 console.error("Error saving response:", e);
+                showMsg('msg', "Your answer was not saved because the server can't be reached.", true);
             }
         }
 
         // Submit Full Exam
         function confirmSubmitExam() {
-            if (!confirm('Are you sure you want to finish and submit this examination? Once submitted, your scores will be permanently recorded.')) {
+            if (!confirm("Finish the exam now? You can't change your answers after this.")) {
                 return;
             }
             submitExam();
@@ -634,7 +655,7 @@
                 } else {
                     isSubmitting = false;
                     const err = await res.json();
-                    alert(err.error || 'Failed to submit exam');
+                    alert(err.error || err.message || 'Could not submit the exam. Try again.');
                 }
             } catch(e) {
                 isSubmitting = false;
