@@ -90,6 +90,9 @@ public class StudentExamServiceImpl implements StudentExamService {
 
         StudentExam attempt = studentExamRepository.findById(request.getAttemptId())
                 .orElseThrow(() -> new ApiException("Attempt not found: " + request.getAttemptId(), 404));
+        if (attempt.isClosedForAnswers(60)) {
+            throw new ApiException("Time is up for this exam. Please submit.", 403);
+        }
 
         Question question = questionRepository.findById(request.getQuestionId())
                 .orElseThrow(() -> new ApiException("Question not found: " + request.getQuestionId(), 404));

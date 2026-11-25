@@ -92,4 +92,20 @@ public class StudentExam {
     public void setStatus(String status) {
         this.status = status;
     }
+
+    /**
+     * True once the attempt can no longer accept answers: it is already
+     * COMPLETED, or the exam duration (plus a short grace period for
+     * network delay) has passed since start_time.
+     */
+    public boolean isClosedForAnswers(int graceSeconds) {
+        if ("COMPLETED".equalsIgnoreCase(status)) {
+            return true;
+        }
+        if (startTime == null || exam == null || exam.getDurationMinutes() == null) {
+            return false;
+        }
+        LocalDateTime deadline = startTime.plusMinutes(exam.getDurationMinutes()).plusSeconds(graceSeconds);
+        return LocalDateTime.now().isAfter(deadline);
+    }
 }
