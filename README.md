@@ -91,6 +91,14 @@ mysql -u root -p smart_exam < database/migration_coding_support.sql
 
 ## 🚀 How to Run the Application
 
+### 0. One-time setup
+1. Create `backend/.env` from the example and put your MySQL password in it (this file is git-ignored; both backends read it):
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+2. Load the database: `schema_2.sql`, then `migration_coding_support.sql`, then `fix_triggers.sql`.
+3. If starting an exam says *"Registration closed: exam date has already passed"*, run `database/refresh_exam_dates.sql` (the `BeforeExamAttempt` trigger blocks exams whose date is in the past).
+
 ### Option A: Run the Spring Boot Java Backend (Recommended)
 1. Navigate to the `backend-java` folder:
    ```bash
