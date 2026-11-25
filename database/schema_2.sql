@@ -455,11 +455,12 @@ SELECT * FROM ROLES;
 
 INSERT IGNORE INTO EXAMS (exam_id, subject, exam_date, duration_minutes, total_marks, negative_marking)
 VALUES
-    (1, 'DBMS',               NOW(), 30, 50, 0.50),
-    (2, 'Operating Systems',  NOW(), 25, 50, 0.50),
-    (3, 'Computer Networks',  NOW(), 30, 50, 0.25),
-    (4, 'Data Structures',    NOW(), 35, 50, 0.50),
-    (5, 'Mathematics',        NOW(), 40, 50, 0.25);
+    -- Dated in the future: BeforeExamAttempt rejects attempts once exam_date has passed
+    (1, 'DBMS',               DATE_ADD(NOW(), INTERVAL 30 DAY), 30, 50, 0.50),
+    (2, 'Operating Systems',  DATE_ADD(NOW(), INTERVAL 30 DAY), 25, 50, 0.50),
+    (3, 'Computer Networks',  DATE_ADD(NOW(), INTERVAL 30 DAY), 30, 50, 0.25),
+    (4, 'Data Structures',    DATE_ADD(NOW(), INTERVAL 30 DAY), 35, 50, 0.50),
+    (5, 'Mathematics',        DATE_ADD(NOW(), INTERVAL 30 DAY), 40, 50, 0.25);
 
 SELECT * FROM EXAMS;
 
