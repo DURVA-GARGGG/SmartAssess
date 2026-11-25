@@ -11,6 +11,10 @@ DROP TRIGGER IF EXISTS AfterResultInsert;
 DROP TRIGGER IF EXISTS CheckSuspiciousActivity;
 DROP TRIGGER IF EXISTS AfterProctoringUpdate;
 DROP TRIGGER IF EXISTS AfterProctoringInsert;
+-- Also drop the BEFORE versions so this script can be re-run safely
+DROP TRIGGER IF EXISTS BeforeResultInsert;
+DROP TRIGGER IF EXISTS BeforeProctoringUpdate;
+DROP TRIGGER IF EXISTS BeforeProctoringInsert;
 
 -- 2. Create proper BEFORE INSERT trigger on RESULTS
 -- Valid MySQL: assigns NEW.result_status directly without executing an UPDATE
