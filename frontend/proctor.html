@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proctoring | Smart Exam</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="brand" href="proctor.html"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam <small>Proctor</small></a>
+        <div class="nav-links">
+            <span id="userNameDisplay" class="user-chip">Proctor</span>
+            <a href="admin.html" id="adminLink" style="display:none;">Manage exams</a>
+            <a href="#" onclick="logout(); return false;">Sign out</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <header class="page-head">
+            <h1>Proctoring</h1>
+            <p class="lede">Every exam attempt with its tab switches. An attempt with more than 5 switches is flagged, and its result is marked invalid.</p>
+        </header>
+
+        <div class="stat-row">
+            <div class="panel stat accent-sky"><span class="stat-num" id="statAttempts">0</span><span class="muted">attempts</span></div>
+            <div class="panel stat accent-petal"><span class="stat-num" id="statFlagged">0</span><span class="muted">flagged attempts</span></div>
+            <div class="panel stat accent-lemon"><span class="stat-num" id="statInvalid">0</span><span class="muted">invalid results</span></div>
+        </div>
+
+        <section class="panel table-wrap accent-teal">
+            <div class="panel-head">
+                <h3>Attempts</h3>
+                <label class="muted" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                    <input type="checkbox" id="flaggedOnly" onchange="render()"> Show flagged only
+                </label>
+            </div>
+            <div id="msg" role="status"></div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student</th>
+                        <th>Exam</th>
+                        <th>Attempt</th>
+                        <th>Tab switches</th>
+                        <th>Proctoring</th>
+                        <th>Score</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody id="attemptBody">
+                    <tr><td colspan="7" class="empty">Loading attempts...</td></tr>
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="js/api.js"></script>
+    <script>
+        // Proctors and admins may open this page
+        (function guard() {
+            const role = localStorage.getItem('role');
+            if (!getToken() || (role !== 'Proctor' && role !== 'Admin')) {
+                window.location.href = 'index.html';
+                return;
+            }
+            document.getElementById('userNameDisplay').textContent = localStorage.getItem('name') || role;
+            if (role === 'Admin') document.getElementById('adminLink').style.display = '';
+        })();
+
+        let attempts = [];
+
+        function esc(str) {
+            return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+        }
+
+        function resultLabel(status) {
+            if (!status) return '<span class="status-tag status-in">Not submitted</span>';
+            const text = status === 'PASS' ? 'Pass' : status === 'FAIL' ? 'Fail' : status === 'INVALID' ? 'Invalid' : status;
+            return `<span class="status-tag status-${status.toLowerCase()}">${esc(text)}</span>`;
+        }
+
+        function render() {
+            const onlyFlagged = document.getElementById('flaggedOnly').checked;
+            const rows = attempts.filter(a => !onlyFlagged || a.suspicious);
+            document.getElementById('statAttempts').textContent = attempts.length;
+            document.getElementById('statFlagged').textContent = attempts.filter(a => a.suspicious).length;
+            document.getElementById('statInvalid').textContent = attempts.filter(a => a.result_status === 'INVALID').length;
+
+            const tbody = document.getElementById('attemptBody');
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="empty">${onlyFlagged ? 'No flagged attempts. Every student stayed on the exam tab.' : 'No attempts yet. They appear here once students start exams.'}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = rows.map(a => `
+                <tr class="${a.suspicious ? 'row-flagged' : ''}">
+                    <td><strong>${esc(a.student_name)}</strong><br><span class="muted" style="font-size:0.85rem;">${esc(a.student_email)}</span></td>
+                    <td>${esc(a.subject)}</td>
+                    <td>${a.attempt_status === 'COMPLETED' ? 'Submitted' : 'In progress'}</td>
+                    <td class="score">${a.tab_switch_count}</td>
+                    <td>${a.suspicious ? '<span class="status-tag status-flagged">Flagged</span>' : '<span class="status-tag status-pass">OK</span>'}</td>
+                    <td class="score">${a.score != null ? a.score : '&ndash;'}</td>
+                    <td>${resultLabel(a.result_status)}</td>
+                </tr>`).join('');
+        }
+
+        async function loadAttempts() {
+            try {
+                const res = await fetch(API_BASE + '/proctor/attempts', { headers: getHeaders() });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    showMsg('msg', err.message || err.error || 'Could not load attempts. Sign in again as a proctor or admin.', true);
+                    document.getElementById('attemptBody').innerHTML = '';
+                    return;
+                }
+                attempts = await res.json();
+                render();
+            } catch (e) {
+                showMsg('msg', "Can't reach the server. Check that the backend is running on port 8080.", true);
+                document.getElementById('attemptBody').innerHTML = '';
+            }
+        }
+
+        loadAttempts();
+    </script>
+</body>
+</html>

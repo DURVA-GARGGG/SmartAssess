@@ -11,6 +11,7 @@
         <a class="brand" href="admin.html"><span class="brand-mark" aria-hidden="true">S</span>Smart Exam <small>Admin</small></a>
         <div class="nav-links">
             <span id="userNameDisplay" class="user-chip">Admin</span>
+            <a href="proctor.html">Proctoring</a>
             <a href="#" onclick="logout(); return false;">Sign out</a>
         </div>
     </nav>
@@ -258,7 +259,7 @@
                         <td>${r.student_name}</td>
                         <td>${r.subject}</td>
                         <td class="score">${r.score !== null ? r.score : 'Pending'}</td>
-                        <td><span class="status-tag status-${(r.result_status || 'in').toLowerCase()}">${r.result_status === 'PASS' ? 'Pass' : r.result_status === 'FAIL' ? 'Fail' : (r.result_status || 'In progress')}</span></td>
+                        <td><span class="status-tag status-${(r.result_status || 'in').toLowerCase()}">${r.result_status === 'PASS' ? 'Pass' : r.result_status === 'FAIL' ? 'Fail' : r.result_status === 'INVALID' ? 'Invalid' : (r.result_status || 'In progress')}</span></td>
                     </tr>`;
                 });
             } catch (e) {

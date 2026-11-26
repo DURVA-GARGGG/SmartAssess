@@ -44,7 +44,7 @@ public class AuthServiceImpl implements AuthService {
 
         Integer roleId = request.getRole_id() != null ? request.getRole_id() : 2;
         Role role = roleRepository.findById(roleId)
-                .orElseGet(() -> roleRepository.save(new Role(roleId, roleId == 1 ? "Admin" : "Student")));
+                .orElseGet(() -> roleRepository.save(new Role(roleId, roleId == 1 ? "Admin" : roleId == 3 ? "Proctor" : "Student")));
 
         User user = new User();
         user.setName(request.getName());

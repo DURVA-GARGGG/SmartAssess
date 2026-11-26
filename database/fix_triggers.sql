@@ -4,6 +4,9 @@
 
 USE smart_exam;
 
+-- Proctor role (for the proctor dashboard)
+INSERT IGNORE INTO ROLES (role_id, role_name) VALUES (3, 'Proctor');
+
 -- 1. Drop the problematic AFTER INSERT/UPDATE triggers that attempt
 -- to update the same table that invoked them (MySQL Error 1442)
 DROP TRIGGER IF EXISTS SetPassFail;
@@ -24,6 +27,7 @@ BEFORE INSERT ON RESULTS
 FOR EACH ROW
 BEGIN
     DECLARE v_total_marks INT DEFAULT 0;
+    DECLARE v_flagged     BOOLEAN DEFAULT FALSE;
 
     SELECT e.total_marks
     INTO   v_total_marks
@@ -31,7 +35,15 @@ BEGIN
     JOIN   STUDENT_EXAM se ON e.exam_id = se.exam_id
     WHERE  se.attempt_id = NEW.attempt_id;
 
-    IF NEW.score IS NOT NULL AND v_total_marks > 0 THEN
+    -- More than 5 tab switches sets suspicious_flag; such a result is INVALID
+    SELECT COALESCE(MAX(suspicious_flag), FALSE)
+    INTO   v_flagged
+    FROM   PROCTORING_LOG
+    WHERE  attempt_id = NEW.attempt_id;
+
+    IF v_flagged THEN
+        SET NEW.result_status = 'INVALID';
+    ELSEIF NEW.score IS NOT NULL AND v_total_marks > 0 THEN
         SET NEW.result_status = IF(NEW.score >= v_total_marks * 0.40, 'PASS', 'FAIL');
     END IF;
 END //

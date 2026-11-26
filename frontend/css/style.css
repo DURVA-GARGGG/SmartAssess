@@ -196,7 +196,7 @@ td.score { font-family: var(--font-head); font-weight: 700; font-size: 1.15rem; 
 .badge-plain { background: #F0F2F7; color: var(--ink-soft); }
 
 .status-pass, .status-passed, .status-accepted, .status-success { background: var(--good-bg); color: var(--good); }
-.status-fail, .status-failed, .status-error, .status-wrong_answer,
+.status-fail, .status-failed, .status-error, .status-invalid, .status-flagged, .status-wrong_answer,
 .status-runtime_error, .status-compilation_error { background: var(--bad-bg); color: var(--bad); }
 .status-timeout, .status-time_limit_exceeded, .status-auto_generated, .status-in { background: var(--warn-bg); color: var(--warn); }
 
@@ -338,3 +338,10 @@ td.score { font-family: var(--font-head); font-weight: 700; font-size: 1.15rem; 
 .panel.accent-sky { border-top: 4px solid var(--sky); }
 .panel.accent-petal { border-top: 4px solid var(--petal); }
 .panel.accent-lemon { border-top: 4px solid var(--lemon-line); }
+
+/* ---------- Proctor dashboard ---------- */
+.stat-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; margin-bottom:1.5rem; }
+.stat { display:flex; align-items:baseline; gap:0.6rem; padding:1.1rem 1.4rem; }
+.stat-num { font-family:var(--font-head); font-weight:700; font-size:2rem; color:var(--ink); }
+tr.row-flagged td { background:#FFF7F9; }
+@media (max-width: 640px) { .stat-row { grid-template-columns:1fr; } }

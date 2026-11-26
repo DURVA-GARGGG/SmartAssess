@@ -36,6 +36,7 @@
                         <select id="role_id">
                             <option value="2">Student</option>
                             <option value="1">Admin</option>
+                            <option value="3">Proctor</option>
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block" id="submitBtn">Sign in</button>
@@ -52,7 +53,7 @@
         document.getElementById('toggleMode').addEventListener('click', () => {
             isLogin = !isLogin;
             document.getElementById('formTitle').innerText = isLogin ? 'Welcome back' : 'Create your account';
-            document.getElementById('formSub').innerText = isLogin ? 'Sign in to see your exams and results.' : 'Students take exams; admins create them.';
+            document.getElementById('formSub').innerText = isLogin ? 'Sign in to see your exams and results.' : 'Students take exams, admins create them, proctors review tab switches.';
             document.getElementById('submitBtn').innerText = isLogin ? 'Sign in' : 'Create account';
             document.getElementById('toggleLead').innerText = isLogin ? 'New here?' : 'Already have an account?';
             document.getElementById('toggleMode').innerText = isLogin ? 'Create an account' : 'Sign in';
@@ -90,7 +91,8 @@
                         localStorage.setItem('name', data.name);
                         
                         // Redirect based on role
-                        if(data.role === 'Admin') window.location.href = 'admin.html';
+                        if (data.role === 'Admin') window.location.href = 'admin.html';
+                        else if (data.role === 'Proctor') window.location.href = 'proctor.html';
                         else window.location.href = 'student.html';
                     } else {
                         document.getElementById('toggleMode').click(); // Switch to sign in

@@ -382,8 +382,8 @@ DELIMITER ;
 
 
 -- TRIGGER: BeforeResultInsert  (BEFORE INSERT on RESULTS)
--- Sets result_status to PASS or FAIL based on whether the
--- student scored >= 40% of total_marks.
+-- Sets result_status to INVALID if the attempt was flagged for
+-- tab switching, otherwise PASS or FAIL at 40% of total_marks.
 -- BEFORE (not AFTER) because MySQL forbids a trigger from
 -- UPDATE-ing its own table (Error 1442); here we set NEW directly.
 
@@ -395,6 +395,7 @@ BEFORE INSERT ON RESULTS
 FOR EACH ROW
 BEGIN
     DECLARE v_total_marks INT DEFAULT 0;
+    DECLARE v_flagged     BOOLEAN DEFAULT FALSE;
 
     SELECT e.total_marks
     INTO   v_total_marks
@@ -402,7 +403,15 @@ BEGIN
     JOIN   STUDENT_EXAM se ON e.exam_id = se.exam_id
     WHERE  se.attempt_id = NEW.attempt_id;
 
-    IF NEW.score IS NOT NULL AND v_total_marks > 0 THEN
+    -- More than 5 tab switches sets suspicious_flag; such a result is INVALID
+    SELECT COALESCE(MAX(suspicious_flag), FALSE)
+    INTO   v_flagged
+    FROM   PROCTORING_LOG
+    WHERE  attempt_id = NEW.attempt_id;
+
+    IF v_flagged THEN
+        SET NEW.result_status = 'INVALID';
+    ELSEIF NEW.score IS NOT NULL AND v_total_marks > 0 THEN
         SET NEW.result_status = IF(NEW.score >= v_total_marks * 0.40, 'PASS', 'FAIL');
     END IF;
 END //
@@ -444,7 +453,8 @@ DELIMITER ;
 
 INSERT IGNORE INTO ROLES (role_id, role_name) VALUES
     (1, 'Admin'),
-    (2, 'Student');
+    (2, 'Student'),
+    (3, 'Proctor');
 
 SELECT * FROM ROLES;
 

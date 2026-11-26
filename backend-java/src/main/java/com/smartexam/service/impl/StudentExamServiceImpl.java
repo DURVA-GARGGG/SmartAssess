@@ -165,7 +165,15 @@ public class StudentExamServiceImpl implements StudentExamService {
         result.setScore(totalScore);
 
         BigDecimal passingThreshold = BigDecimal.valueOf(exam.getTotalMarks()).multiply(BigDecimal.valueOf(0.40));
-        result.setResultStatus(totalScore.compareTo(passingThreshold) >= 0 ? "PASS" : "FAIL");
+        // More than 5 tab switches flags the attempt, and a flagged attempt's result is INVALID
+        boolean flagged = proctoringLogRepository.findByStudentExamAttemptId(attemptId)
+                .map(l -> Boolean.TRUE.equals(l.getSuspiciousFlag()))
+                .orElse(false);
+        if (flagged) {
+            result.setResultStatus("INVALID");
+        } else {
+            result.setResultStatus(totalScore.compareTo(passingThreshold) >= 0 ? "PASS" : "FAIL");
+        }
 
         resultRepository.save(result);
 

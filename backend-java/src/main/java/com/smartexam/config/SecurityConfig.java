@@ -46,6 +46,8 @@ public class SecurityConfig {
                 ).permitAll()
                 // Only admins may create exams/questions or view all results
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // The proctor dashboard is for proctors and admins
+                .requestMatchers("/api/proctor/attempts").hasAnyRole("PROCTOR", "ADMIN")
                 // Every other endpoint needs a valid JWT
                 .anyRequest().authenticated()
             )

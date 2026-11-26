@@ -19,7 +19,7 @@
     <main class="container">
         <header class="page-head">
             <h1>My results</h1>
-            <p class="lede">Scores include negative marking and your best submission for each coding question. You pass with 40% of the total marks.</p>
+            <p class="lede">Scores include negative marking and your best submission for each coding question. You pass with 40% of the total marks. Switching tabs more than 5 times during an exam makes that result invalid.</p>
         </header>
         <div class="panel table-wrap accent-lemon">
             <table>
@@ -63,7 +63,7 @@
                             <td style="font-weight:600;">${r.subject}</td>
                             <td class="score">${score}</td>
                             <td>
-                                <span class="status-tag status-${status.toLowerCase().split(' ')[0]}">${status === 'PASS' ? 'Pass' : status === 'FAIL' ? 'Fail' : status}</span>
+                                <span class="status-tag status-${status.toLowerCase().split(' ')[0]}">${status === 'PASS' ? 'Pass' : status === 'FAIL' ? 'Fail' : status === 'INVALID' ? 'Invalid: more than 5 tab switches' : status}</span>
                             </td>
                         </tr>
                     `;
